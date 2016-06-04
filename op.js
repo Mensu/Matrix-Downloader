@@ -72,14 +72,22 @@ function addLinenum(str) {
 }
 
 function generateOutput(rawData, callback) {
-  rawData = rawData.replace(/((\s*)$)/g, '');
-  if (!rawData.match(/(\}\]$)/)) rawData += '...(more data)"}]';
+  rawData = rawData.substring(rawData.indexOf('['), rawData.length).replace(/((\s*)$)/g, '').replace(/…$/, '');
+  if (!rawData.match(/(\}\]$)/)) rawData += '...(possibly missing data expected)"}]';
   try {
     rawData = JSON.parse(rawData);
   } catch (e) {
     var index = rawData.lastIndexOf('","');
-    if (~index) rawData = JSON.parse(rawData.substring(0, index) + '...(more data)"}]');
-    else {
+    if (~index) {
+      try {
+        rawData = JSON.parse(rawData.substring(0, index) + '...(possibly missing data expected)"}]');
+      } catch (e) {
+        console.log('', e.name + ": " + e.message);
+        console.log('Error: Failed to parse the json. You might want to try deleting some characters at the end of the file.');
+        console.log('*** Note: For the moment the polisher can only deal with the abnormal case where data are incomplete after a string-type value, such as [{"key":"incomplete valu\n');
+        if (callback) return callback(e, null);
+      }
+    } else {
       console.log('', e.name + ": " + e.message);
       console.log('Error: Failed to parse the json. You might want to try deleting some characters at the end of the file.');
       console.log('*** Note: For the moment the polisher can only deal with the abnormal case where data are incomplete after a string-type value, such as [{"key":"incomplete valu\n');
@@ -91,7 +99,7 @@ function generateOutput(rawData, callback) {
     wrapBorder = function(str) {
       var border = '-----------------------------------\n';
       if (!str.match(/\n$/)) {
-        if (str == 'unavailable' || str.match(/\.\.\.\(more data\)$/)) str += '\n';
+        if (str == 'unavailable' || str.match(/\.\.\.\(possibly missing data expected\)$/)) str += '\n';
         else str += "\n(Not end with a '\\n')\n";
       }
       return border + str + border;
