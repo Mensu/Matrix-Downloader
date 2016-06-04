@@ -1,41 +1,43 @@
-#### Please feel free to fork the repository, create new issues as well as make pull requests. Thanks in advance for all your participation!
+#### Please feel free to fork the repository, open new issues as well as make pull requests. Thanks in advance for all your participation!
 
 
 # Main Features
-Make submission output generated on eden more convenient to read and utilize!
+Make submission output generated on Matrix more convenient to read and utilize!
 
 Note: Only txt files encoded in utf-8 are accepted.  
 WARNING: The original file will be OVERWRITTEN. It is wise to backup in advance.
 
+We would appreciate it if you find a **filename that cannot be properly recognized** by the program and are willing to report to us [by email](mailto:yxshw55@qq.com) or [by opening an issue](https://github.com/Mensu/Matrix-Output-Polisher/issues/new)!
+
 # Tutorial
 
-1. Right-click on the json output and select "检查" on Chrome.
-![right click on nearly unreadable output](http://7xrahq.com1.z0.glb.clouddn.com/matrix-output-polisher-tutorial-right-click.png)
-2. Click to unfold and copy the json test.
-![unfold](http://7xrahq.com1.z0.glb.clouddn.com/matrix-output-polisher-tutorial-unfold.png)
-![copy-1](http://7xrahq.com1.z0.glb.clouddn.com/matrix-output-polisher-tutorial-copy1.png)
-![copy-2](http://7xrahq.com1.z0.glb.clouddn.com/matrix-output-polisher-tutorial-copy2.png)
-3. Save the test in "output.txt" encoded in **UTF-8** before moving the output.txt to the folder where the MatrixOutputPolisher is located.
-![save](http://7xrahq.com1.z0.glb.clouddn.com/matrix-output-polisher-tutorial-save.png)
-4. Run the polisher through run.bat/ run.sh (see suggestions on running below) and simply press Enter to obtain a nicer output!
-![run](http://7xrahq.com1.z0.glb.clouddn.com/matrix-output-polisher-tutorial-run.png)
-![result](http://7xrahq.com1.z0.glb.clouddn.com/matrix-output-polisher-tutorial-result.png)
+1. Right-click on the json output and select "检查" on Chrome.  
+<center>![right click on nearly unreadable output](http://7xrahq.com1.z0.glb.clouddn.com/matrix-output-polisher-tutorial-right-click.png)</center>
+2. Click to unfold and copy the json test.  
+<center>![unfold](http://7xrahq.com1.z0.glb.clouddn.com/matrix-output-polisher-tutorial-unfold.png)</center>
+<center>![copy-1](http://7xrahq.com1.z0.glb.clouddn.com/matrix-output-polisher-tutorial-copy1.png)</center>
+<center>![copy-2](http://7xrahq.com1.z0.glb.clouddn.com/matrix-output-polisher-tutorial-copy2.png)</center>
+3. Save the test in "output.txt" encoded in **UTF-8** before moving the output.txt to the folder where the MatrixOutputPolisher is located.  
+<center>![save](http://7xrahq.com1.z0.glb.clouddn.com/matrix-output-polisher-tutorial-save.png)</center>
+4. Run the polisher through run.bat/ run.sh (see suggestions on running below) and simply press Enter to obtain a nicer output!  
+<center>![run](http://7xrahq.com1.z0.glb.clouddn.com/matrix-output-polisher-tutorial-run.png)</center>
+<center>![result](http://7xrahq.com1.z0.glb.clouddn.com/matrix-output-polisher-tutorial-result.png)</center>
 
 
 # Precompiled Binaries
 
 There are some precompiled binaries ( by using ``enclose`` )
 
-[``Windows-32bit``](https://github.com/Mensu/matrix-output-polisher/releases/download/v0.2-alpha/MatrixOutputPolisher-Win32.exe)
+[``Windows-32bit``](https://github.com/Mensu/matrix-output-polisher/releases/download/v0.1-alpha/MatrixOutputPolisher-Win32.exe)
 ``9.3 MB``
 
-[``Windows-64bit``](https://github.com/Mensu/matrix-output-polisher/releases/download/v0.2-alpha/MatrixOutputPolisher-Win64.exe)
-``11.7 MB``
+[``Windows-64bit``](https://github.com/Mensu/matrix-output-polisher/releases/download/v0.1-alpha/MatrixOutputPolisher-Win64.exe)
+``11.8 MB``
 
-[``Mac-64bit``](https://github.com/Mensu/matrix-output-polisher/releases/download/v0.2-alpha/MatrixOutputPolisher-Mac64)
+[``Mac-64bit``](https://github.com/Mensu/matrix-output-polisher/releases/download/v0.1-alpha/MatrixOutputPolisher-Mac64)
 ``16.0 MB``
 
-[``Ubuntu-64bit``](https://github.com/Mensu/matrix-output-polisher/releases/download/v0.2-alpha/MatrixOutputPolisher-Ubuntu64)
+[``Ubuntu-64bit``](https://github.com/Mensu/matrix-output-polisher/releases/download/v0.1-alpha/MatrixOutputPolisher-Ubuntu64)
 ``17.8 MB``
 
 You only need to execute it
