@@ -1,5 +1,5 @@
 var windows = false;
-var mac = true;
+var mac = false;
 var ubuntu = false;
 
 var fs = require('fs');
@@ -42,7 +42,7 @@ function writeFile(path, contents, callback) {
   });
 }
 
-
+      // "Quotation Marks" here refers to patterns like ['\''] (=>[']), ['\ '] (=>[ ]), ["\""] (=>["])
 function removeUbuntuFilenameQuotationMarks(str, quotation) {
   var newStr = '';
   for (var i = 0; i < str.length;) {
@@ -63,32 +63,36 @@ function removeUbuntuFilenameQuotationMarks(str, quotation) {
 
 function addLinenum(str) {
   if (str == 'unavailable' || str.length == 0) return str;
+  var length = str.length, result = '', endWithoutNewLine = true;
+  if (str[length - 1] == '\n') endWithoutNewLine = false;
   str = str.split('\n');
-  var result = '';
   for (i in str) result += sprintf('%03d |', parseInt(i) + 1) + str[i] + '\n';
-  return result;
+  length = result.length;
+  return result.substring(0, length - endWithoutNewLine);
 }
 
 function generateOutput(rawData, callback) {
-  rawData = rawData.substr(0, rawData.length - 2);
+  rawData = rawData.replace(/((\s*)$)/g, '');
   if (!rawData.match(/(\}\]$)/)) rawData += '...(more data)"}]';
   try {
     rawData = JSON.parse(rawData);
   } catch (e) {
-    rawData = null;
-    console.log('', e.name + ": " + e.message);
-    console.log('Error: Failed to parse the json. You might want to try deleting some characters at the end of the file.');
-    console.log('*** Note: For the moment the polisher can only deal with the abnormal case where data are incomplete after a string-type value, such as [{"key":"incomplete valu\n');
-    if (callback) callback(e, null);
+    var index = rawData.lastIndexOf('","');
+    if (~index) rawData = JSON.parse(rawData.substring(0, index) + '...(more data)"}]');
+    else {
+      console.log('', e.name + ": " + e.message);
+      console.log('Error: Failed to parse the json. You might want to try deleting some characters at the end of the file.');
+      console.log('*** Note: For the moment the polisher can only deal with the abnormal case where data are incomplete after a string-type value, such as [{"key":"incomplete valu\n');
+      if (callback) return callback(e, null);
+    }
   }
-  if (!rawData) return;
   var result = '';
-  var wrap = function(str, unit) { return ((typeof(str) != 'undefined') ? str + ((unit) ? unit : '') : 'unavailable'); },
+  var wrap = function(str, unit) { return ((typeof(str) != 'undefined') ? (str + ((unit) ? unit : '')) : 'unavailable'); },
     wrapBorder = function(str) {
       var border = '-----------------------------------\n';
       if (!str.match(/\n$/)) {
-        if (str == 'unavailable') str += '\n';
-        else str += "(Not end with a '\\n')\n";
+        if (str == 'unavailable' || str.match(/\.\.\.\(more data\)$/)) str += '\n';
+        else str += "\n(Not end with a '\\n')\n";
       }
       return border + str + border;
     };
@@ -97,7 +101,7 @@ function generateOutput(rawData, callback) {
     result += '\n============ Test ' + i + ' ===============\n';
     result += 'Result code: ' + wrap(test.result) + '\n';
     result += 'Memory used: ' + wrap(test.memoryused, 'KB') + ', Time used: ' + wrap(test.timeused, 'ms') + '\n\n';
-    result += 'Test input:\n' + wrapBorder(wrap(test.stdin)) + '\n';
+    result += 'Test input:\n' + wrapBorder(wrap(test.stdin, '\n')) + '\n';
     if (test.result != 'CR') result += 'Standard answer:\n' + wrapBorder(addLinenum(wrap(test.standard_stdout))) + '\n';
     result += 'Your answer:\n' + wrapBorder(addLinenum(wrap(test.stdout))) + '\n';
   }
