@@ -12,16 +12,16 @@ We would appreciate it if you find a **filename that cannot be properly recogniz
 # Tutorial
 
 1. Right-click on the json output and select "检查" on Chrome.  
-<center>![right click on nearly unreadable output](http://7xrahq.com1.z0.glb.clouddn.com/matrix-output-polisher-tutorial-right-click.png)</center>
+![right click on nearly unreadable output](http://7xrahq.com1.z0.glb.clouddn.com/matrix-output-polisher-tutorial-right-click.png)
 2. Click to unfold and copy the json test.  
-<center>![unfold](http://7xrahq.com1.z0.glb.clouddn.com/matrix-output-polisher-tutorial-unfold.png)</center>
-<center>![copy-1](http://7xrahq.com1.z0.glb.clouddn.com/matrix-output-polisher-tutorial-copy1.png)</center>
-<center>![copy-2](http://7xrahq.com1.z0.glb.clouddn.com/matrix-output-polisher-tutorial-copy2.png)</center>
+![unfold](http://7xrahq.com1.z0.glb.clouddn.com/matrix-output-polisher-tutorial-unfold.png)
+![copy-1](http://7xrahq.com1.z0.glb.clouddn.com/matrix-output-polisher-tutorial-copy1.png)
+![copy-2](http://7xrahq.com1.z0.glb.clouddn.com/matrix-output-polisher-tutorial-copy2.png)
 3. Save the test in "output.txt" encoded in **UTF-8** before moving the output.txt to the folder where the MatrixOutputPolisher is located.  
-<center>![save](http://7xrahq.com1.z0.glb.clouddn.com/matrix-output-polisher-tutorial-save.png)</center>
+![save](http://7xrahq.com1.z0.glb.clouddn.com/matrix-output-polisher-tutorial-save.png)
 4. Run the polisher through run.bat/ run.sh (see suggestions on running below) and simply press Enter to obtain a nicer output!  
-<center>![run](http://7xrahq.com1.z0.glb.clouddn.com/matrix-output-polisher-tutorial-run.png)</center>
-<center>![result](http://7xrahq.com1.z0.glb.clouddn.com/matrix-output-polisher-tutorial-result.png)</center>
+![run](http://7xrahq.com1.z0.glb.clouddn.com/matrix-output-polisher-tutorial-run.png)
+![result](http://7xrahq.com1.z0.glb.clouddn.com/matrix-output-polisher-tutorial-result.png)
 
 
 # Precompiled Binaries
