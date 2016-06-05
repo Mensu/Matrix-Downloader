@@ -17,25 +17,25 @@ Supported Phase:
 
 Memory Check is not supported for the moment.
 
-# Precompiled Binaries (unavailable)
+# Precompiled Binaries
 
 There are some precompiled binaries ( by using ``enclose`` )
 
-[``Windows-32bit``](https://github.com/Mensu/matrix-output-polisher/releases/download/v0.1-alpha/MatrixOutputPolisher-Win32.exe)
-``9.3 MB``
+[``Windows-32bit``](https://github.com/Mensu/matrix-output-polisher/releases/download/v0.2-alpha/MatrixOutputPolisher-Win32.exe)
+``12.6 MB``
 
-[``Windows-64bit``](https://github.com/Mensu/matrix-output-polisher/releases/download/v0.1-alpha/MatrixOutputPolisher-Win64.exe)
-``11.8 MB``
+[``Windows-64bit``](https://github.com/Mensu/matrix-output-polisher/releases/download/v0.2-alpha/MatrixOutputPolisher-Win64.exe)
+``15.9 MB``
 
-[``Mac-64bit``](https://github.com/Mensu/matrix-output-polisher/releases/download/v0.1-alpha/MatrixOutputPolisher-Mac64)
-``16.0 MB``
+[``Mac-64bit``](https://github.com/Mensu/matrix-output-polisher/releases/download/v0.2-alpha/MatrixOutputPolisher-Mac64)
+``29.5 MB``
 
-[``Ubuntu-64bit``](https://github.com/Mensu/matrix-output-polisher/releases/download/v0.1-alpha/MatrixOutputPolisher-Ubuntu64)
-``17.8 MB``
+[``Ubuntu-64bit``](https://github.com/Mensu/matrix-output-polisher/releases/download/v0.2-alpha/MatrixOutputPolisher-Ubuntu64)
+``22.0 MB``
 
 You only need to execute it
 
-# Suggestions on running (unavailable)
+# Suggestions on running
 
 - on Windows ( suppose the downloader is located in D:\eden\ )  
  **Note: It is highly recommended that you run the executable binaries under an *ASCII-only* path on Windows.**  
