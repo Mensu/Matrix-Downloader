@@ -300,7 +300,6 @@ function FetchOne(Id, tobeDone, idArray, callback) {
       return informFetchResult(body.err, Id);
     }
     var data = body.data, config = JSON.parse(data.config), supportFiles = data.supportFiles;
-    console.log(data);
     var title = data.title, c11 = false;
     if (config.compilers['c++']) c11 = Boolean(~config.compilers['c++'].command.indexOf('-std=c++11'));
     var author = data.author, memoryLimit = config.limits.memory + 'MB', timeLimit = config.limits.time + 'ms';
