@@ -9,8 +9,6 @@ var j = request.jar();
 var request = request.defaults({ jar: j });
 var mkdirp = require('mkdirp');
 var prompt = require('prompt');
-var jsdom = require('jsdom');
-var util = require('util');
 var path = require('path');
 var getDirName = path.dirname;
 var fs = require('fs');
@@ -26,13 +24,13 @@ function getMD5(data) { return crypto.createHash('md5').update(data).digest('hex
 function writeFile(path, contents, callback) {
   mkdirp(getDirName(path), function(err) {
     if (err) {
-      if (callback) return console.log('\nError: ', err.message), callback(err);
+      if (callback) return console.log('\nError:', err.message), callback(err);
       else throw err;
     }
     if (windows) contents = contents.replace(/\n/g, '\r\n');
     fs.writeFile(path, contents, function(err) {
       if (err) {
-        if (callback) return console.log('\nError: ', err.message), callback(err);
+        if (callback) return console.log('\nError:', err.message), callback(err);
         else throw err;
       }
       else if (callback) return callback(null);
@@ -40,15 +38,7 @@ function writeFile(path, contents, callback) {
   });
 }
 
-function jQexec(body, cb) {
-  jsdom.env({
-    html: body,
-    scripts: [matrixRootUrl + '/static/js/jquery-1.8.3.min.js'],
-    done: cb
-  });
-}
-
-function connectionFailed() {
+function connectionFailed(e) {
   if (chinese) {
     console.log("\n连接错误: 无法连接到Matrix，请稍后再试:(");
     console.log("  *** 这可能是因为您的电脑没有连网，或者TA叶嘉祺正在更新代码。");
@@ -57,6 +47,7 @@ function connectionFailed() {
     console.log("  *** Lack of access to internet or TA Ye Jiaqi being updating codes \
 may cause this problem. ");
   }
+  throw e;
 }
 
 function encloseJSWarning() {
@@ -102,22 +93,26 @@ function downloadFile(url, dest, callback) {
   });
 };
 
-function fetchLatestSubmissionOutput(problemId, foldername, callback) {
+function fetchLatestSubmissionOutput(problemId, foldername, getAc, callback) {
   request.get(matrixRootUrl + '/get-last-submission-report?problemId=' + problemId + '&userId=' + userId, function(e, r, body) {
-    if (body.err) {
-      console.log('\nError:', body.msg);
-      if (callback) return callback(body.err);
-      else throw body.err;
+    if (e || body.err) {
+      var error = (e) ? e : body.err;
+      console.log('\nError:', error.msg);
+      if (callback) return callback(error);
+      else throw error;
     }
     body = JSON.parse(body);
-    var data = body.data[0], content = '';;
+    var data = body.data[0], content = '';
+    var existanceError = new Error('No useful output detected. You might want to have a look at the problem (id = ' + problemId + ') by yourself.');
     if (!data) {
-      if (callback) return callback(null);
+      console.log('\nError:', existanceError.message);
+      if (callback) return callback(existanceError);
       else return;
     }
     var grade = data.grade, report = JSON.parse(data.report);
     if (!report) {
-      if (callback) return callback(null);
+      console.log('\nError:', existanceError.message);
+      if (callback) return callback(existanceError);
       else return;
     }
 
@@ -143,18 +138,19 @@ function fetchLatestSubmissionOutput(problemId, foldername, callback) {
           var stdContent = null, yourContent = null;
           var addLinenum = function(str, your) {
             var prefix = ((your) ? 'Your ' : ' Std ');
-            if (str == 'missing\n') return '********* missing\n';
-            else if (str.length == 0) return "********* (No output)\n";
+            if (str == 'missing\n') return '*********|(Missing)\n';
+            else if (str.length == 0) return "*********|(No output)\n";
             var length = str.length, ret = '', endWithNewLine = false, moreData = false;
             if (str.match(/ more data\.\.\.$/)) str = str.substring(0, str.length - 14), moreData = true;
-            if (str[length - 1] == '\n') endWithNewLine = true;
+            else if (str.match(/ more data$/)) str = str.substring(0, str.length - 10), moreData = true;
+            if (!moreData && str[length - 1] == '\n') endWithNewLine = true;
             str = str.split('\n');
             for (i in str) ret += sprintf(prefix + '%03d |', parseInt(i) + 1) + str[i] + '\n';
             if (!endWithNewLine) {
               ret += prefix + '    |';
-              if (moreData) ret += ' more data...\n'
+              if (moreData) ret += ' more data...\n';
               else ret += noNewLine + '\n';
-            }
+            } else if (moreData) ret += ' more data...\n';
             if (typeof(your) == 'boolean') {
               if (your) yourContent = ret.split('\n');
               else stdContent = ret.split('\n');
@@ -182,9 +178,13 @@ function fetchLatestSubmissionOutput(problemId, foldername, callback) {
               var small = (stdContent.length < yourContent.length) ? stdContent : yourContent;
               for (i in small) {
                 var std = stdContent[i], your = yourContent[i];
+                var wrapLine = function(str, mark) {
+                  if (str.length == 0) return mark + ' ****|(End of output)';
+                  else return str; 
+                };
                 if (std.substr(10) != your.substr(10)) {
-                  ret += std + '\n' + your + '\n';
-                  ret += '*********|(difference appears from here...)\n';
+                  ret += '*********|(difference appears from here...)\n         |\n';
+                  ret += wrapLine(std, ' Std') + '\n' + wrapLine(your, 'Your') + '\n';
                   break;
                 }
               }
@@ -218,7 +218,7 @@ function fetchLatestSubmissionOutput(problemId, foldername, callback) {
         if (!ac && !wrongNum) content += 'pass\n';
       };
       polish(false);
-      polish(true);
+      if (getAc) polish(true);
     };
     var polishStaticCheckMsg = function(info) {
       var violation = info.violation;
@@ -265,7 +265,6 @@ function fetchLatestSubmissionOutput(problemId, foldername, callback) {
                   {'name': 'memory check',
                   'func': polishMemoryTests}];
     for (i in phases) polishPhase(phases[i].name, phases[i].func);
-    // console.log(content);
     writeFile(savePath + '/' + foldername + '/' + 'Latest Submission Output.txt', content, function(err) {
       if (err) {
         if (callback) return callback(err);
@@ -311,11 +310,13 @@ function downloadStandardAnswerBinaries(Id, savePath, callback) {
   // });
 }
 
-function FetchOne(Id, tobeDone, idArray, callback) {
+function FetchOne(Id, tobeDone, getAc, callback) {
   request.get(matrixRootUrl + '/get-problem-by-id?problemId=' + Id, function(e, r, body) {
     if (e) {
-      connectionFailed(e);
-      throw e;
+      console.log('\nError:', e.message);
+      informFetchResult(e, Id);
+      if (callback) return callback(e);
+      else return;
     }
     body = JSON.parse(body);
     if (body.err) {
@@ -330,12 +331,11 @@ function FetchOne(Id, tobeDone, idArray, callback) {
     var error = null;
     // if (tobeDone) console.log(((chinese) ? "正在获取未完成的 Assignment" : "Fetching unfinished assignment"), Id, "....");
     // else console.log(((chinese) ? "正在获取 Assignment" : "Fetching assignment"), Id, "....");
-    fetchLatestSubmissionOutput(Id, Id + ' ' + title, function(err) {
+    fetchLatestSubmissionOutput(Id, Id + ' ' + title, getAc, function(err) {
       if (err) error = err;
       informFetchResult(error, Id);
       if (callback) return callback();
     });
-    return;
     
 //         // it would be better to encapsulate this section as an exception
 //       if (blockTag.length == 0) {
@@ -359,11 +359,11 @@ function FetchOne(Id, tobeDone, idArray, callback) {
 
 function informFetchResult(error, Id) {
   if (chinese) {
-    if (error) console.log('  ... 下载 Assignment ' + Id + ' 时出错。');
-    else console.log('  ... 成功下载 Assignment ' + Id + '!');
+    if (error) console.log('  ... 下载 Problem ' + Id + ' 时出错。');
+    else console.log('  ... 成功下载 Problem ' + Id + '!');
   } else {
-    if (error) console.log('  ... There occurred some problems when Assignment ' + Id + ' are being downloaded.');
-    else console.log('  ... Assignment ' + Id + ' downloaded successfully!');
+    if (error) console.log('  ... There occurred some problems when Problem ' + Id + ' are being downloaded.');
+    else console.log('  ... Problem ' + Id + ' downloaded successfully!');
   }
 }
 
@@ -418,7 +418,7 @@ function UsersDataManager(filename, callback) {
           // read the file
         fs.readFile(filename, 'utf-8', function(err, rawData) {
           if (err) {
-            if (callback) console.log('', err.message), callback(err);
+            if (callback) console.log('\nError:', err.message), callback(err);
             else throw err;
           } else {
               // create a usersDataManager object from the file
@@ -428,7 +428,7 @@ function UsersDataManager(filename, callback) {
               for (i in self.data.users) 
                 if (self.data.users[i].username.length && self.data.users[i].password.length) ++self.total;
             } catch (e) {
-              console.log('', e.name + ": " + e.message);
+              console.log('\nError:', e.name + ": " + e.message);
               if (chinese) console.log('  *** 错误：' + filename + ' 文件似乎被修改过，无法被解释器识别了。\
 原来的 ' + filename + ' 文件将会在下一次储存用户名密码的时候被覆盖。');
               else console.log('  *** Error: It seems that data stored in ' + filename + ' have \
@@ -477,12 +477,13 @@ new username and password patterns are allowed to stored.');
   UsersDataManager.prototype.removeAccountByUsername = function(username, callback) {
     this.data.users[this.findAccountByUsername(username)]
       = this.data.users[this.total - 1];
-    this.data.users[this.total - 1] = {"username": "", "password": ""};
+    // this.data.users[this.total - 1] = {"username": "", "password": ""};
+    this.data.users.pop();
     --(this.total);
     this.writeDataTo(usersdataFilename, function(err) {
       if (err) {
-        if (chinese) console.log('', err.message, '\n保存失败\n');
-        else console.log('', err.message, '\nFailed to store\n');
+        if (chinese) console.log('\nError:', err.message, '\n保存失败\n');
+        else console.log('\nError:', err.message, '\nFailed to store\n');
         if (callback) return callback();
       }
       if (callback) return callback();
@@ -495,27 +496,29 @@ new username and password patterns are allowed to stored.');
 }
 
 function getAssignmentsId() {
-  // if (globalAutomode) {
-  //   fetched = true;
-  //   //if (chinese) console.log('准备下载未完成的Assignment。');
-  //   //else console.log('Ready to fetch unfinished assignments.');
-  //   return fetchUnfinished(username, new Array(), fetchAsgn);
-  // }
   prompt.start();
   if (chinese) {
-    console.log("请输入 Assignment id");
-    console.log('或者[敲下回车]下载未完成的 Assignment');
+    console.log("请输入 Problem id");
+    // console.log('或者[敲下回车]下载未完成的 Problem');
     console.log('  *** 注意：id应该是一个数字，像 588');
     console.log('  *** 允许一次输入多个id，像 586 587 588，用空格将id隔开');
-    // console.log('  *** 您也可以输入一个 "u" 代表未完成的 Assignment，');
-    // console.log('  *** 像 6910 u 2035  => 下载 6910、未完成的以及2035');
+    console.log('  *** 默认情况下，不获取正确(CR)的样例');
+    console.log('  *** 想获取正确的样例，您可以输入一个 "a" 作为 id');
+    console.log('  *** 这样，正确的样例会在 "a" 后面那些 Problem 的输出中显示');
+    console.log('  *** 您还可以通过在 id 后面加一个 "a" 来指定要看哪些 Problem 的正确样例');
+    console.log('  *** 像 586 587a 588 a 5 6 7');
+    console.log('         => 586(不要CR) 587(要CR) 588(不要CR) 5(要CR) 6(要CR) 7(要CR)');
   } else {
-    console.log("Please input the assignment id");
-    console.log('or [simply press Enter] to fetch unfinished assignments');
-    console.log('  *** Note: a valid assignment id is a number like 588');
-    console.log('  *** multiple ids are allowed like 586 587 588, with ids separated by spaces');
-    // console.log('  *** you may also input a "u" as an id to fetch unfinished assignments,');
-    // console.log('  *** like 6910 u 2035  => 6910, unfinished ones and 2035 will be fetched');
+    console.log("Please input the Problem id");
+    // console.log('or [simply press Enter] to fetch unfinished Problems');
+    console.log('  *** Note: a valid problem id is a number like 588');
+    console.log('  *** Multiple ids are allowed like 586 587 588, with ids separated by spaces');
+    console.log('  *** By default correct samples (CR) are not displayed');
+    console.log('  *** To check out correct samples, you may input an "a" as an id');
+    console.log('  *** In this way, correct samples will be displayed in the output of problems after the "a"');
+    console.log('  *** You may also append an "a" after an id the correct samples of which you would like to check out');
+    console.log('  *** like 586 587a 588 a 5 6 7');
+    console.log('         => 586(No CR) 587(CR) 588(No CR) 5(CR) 6(CR) 7(CR)');
   }
   prompt.get([{
     name: 'id',
@@ -523,35 +526,23 @@ function getAssignmentsId() {
     before: function(id) {return id.split(' ');}
   }], function(err, result) {
     if (err) throw err;
-    var fetched = false;  // flag for unfinished assignments
+    var fetched = false, getAcOutput = false;  // flag for unfinished problems
     var rawId = result.id, countValidId = 0;
     var idArray = new Array();
-      // simply press Enter => fetch unfinished assignments
-    if (rawId.length == 1 && rawId[0] == '') {
-      fetched = true;
-      //if (chinese) console.log('准备下载未完成的 Assignment。');
-      //else console.log('Ready to fetch unfinished assignments.');
-      if (ByEncloseJS) return fetchUnfinished(username, idArray, fetchAsgn);
-      else return fetchUnfinished(username);
-    }
+      // simply press Enter => fetch unfinished problems
+    // if (rawId.length == 1 && rawId[0] == '') {
+
+    // }
     for (i in rawId) {
       var oneId = rawId[i];
       if (!fetched && oneId.match(/^u$/)) {
-          // id is u => fetch unfinished assignments
-        fetched = true;
-        //if (chinese) console.log('准备下载未完成的 Assignment。');
-        //else console.log('Ready to fetch unfinished assignments.');
-        if (ByEncloseJS) fetchUnfinished(username, idArray, fetchAsgn);
-        else fetchUnfinished(username);
-      } else if (oneId.match(/^(\d){1,5}$/)) {
-          // id is valid => fetch the desired assignment
+
+      } else if (oneId.match(/^[Aa]$/)) {
+        ++countValidId, getAcOutput = true;
+      } else if (oneId.match(/^((\d){1,})([Aa]{0,1})$/)) {
         ++countValidId;
-        if (countValidId == 5) encloseJSWarning();
-        //if (chinese) console.log('准备下载指定的 Assignment (id = ' + oneId + ')');
-        //else console.log('Ready to fetch the desired assignment (id = ' + oneId + ')');
-        //FetchOne(oneId, true, "", username);
-        if (ByEncloseJS) idArray.push([oneId, true, "", username]);
-        else FetchOne(oneId, true, "");
+        if (oneId.match(/[Aa]$/)) FetchOne(oneId.substring(0, oneId.length - 1), false, true);
+        else FetchOne(oneId, false, getAcOutput);
       } else if (oneId != '') {  // else => ignore
         if (chinese) console.log('忽略非法id "' + oneId + '"');
         else console.log('invalid id "' + oneId + '" ignored');
@@ -561,8 +552,8 @@ function getAssignmentsId() {
     if (countValidId == 0 && !fetched) {
       if (chinese) console.log('无效输入！请重试...');
       else console.log('Bad input! Please try again...');
-      getAssignmentsId(username);
-    } else if (ByEncloseJS) fetchAsgn(idArray);
+      getAssignmentsId();
+    }
   });
 }
 
@@ -618,8 +609,8 @@ function loginMatrix(fromData, loginUsername, password) {
           usersDataManager.addAccount(username, password);
           usersDataManager.writeDataTo(usersdataFilename, function(err) {
             if (err) {
-              if (chinese) console.log('', err.message, '\n保存失败\n');
-              else console.log('', err.message, '\nFailed to store\n');
+              if (chinese) console.log('\nError:', err.message, '\n保存失败\n');
+              else console.log('\nError:', err.message, '\nFailed to store\n');
               return getAssignmentsId();
             }
             if (chinese) console.log('... 保存成功\n');
@@ -707,13 +698,8 @@ request.get(matrixRootUrl, function(err, response, body) {
     connectionFailed(err);
     throw err;
   }
-  jQexec(body, function(err, window) {
-    var $ = window.$;
-    // informServerError($);
-    // var csrf = $($('[name=csrfmiddlewaretoken]')[0]).val();
-    new UsersDataManager(usersdataFilename, function(err, self) {
-      if (err) return;
-      else return usersDataManager = self, welcome();
-    });
+  new UsersDataManager(usersdataFilename, function(err, self) {
+    if (err) return;
+    else return usersDataManager = self, welcome();
   });
 });
