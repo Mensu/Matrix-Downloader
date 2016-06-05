@@ -131,6 +131,7 @@ function fetchLatestSubmissionOutput(problemId, foldername, callback) {
     var polishTests = function(tests, std) {
       var prefix = (std) ? 'Standard' : 'Random', noNewLine = '(No \\n at the end)', hasNewLine = '(Has \\n at the end)';
       var polish = function(ac) {
+        var wrongNum = 0;
         for (i in tests) {
           //tests[0] = JSON.parse('{"memoryused":6044,"result":"WA","standard_stdout":"2000/06/10-23:30:32 : smyfeobsiwcyjd\\n2006/05/18-23:44:38 : iqfmacdidhxavuttvunaewlngzkzrcswyslobffp\\n2010/05/01-17:00:03 : goyzcfacjvybbusdxttzbqrzbz\\n2018/09/13-05:42:02 : newxqoeeeigqm\\n2018/10/08-16:55:36 : erffudcvxsyfkbnvyc\\n2021/06/19-01:35:17 : ccymckbipr\\n2023/10/10-02:32:23 : lvfxerxksckmsbctyjmzjovkdhoqlkqngvkzg\\n2027/06/18-21:35:34 : glhrly\\n2027/12/28-23:54:00 : glahyskqprdjjvjxuvzvsxmm\\n2034/07/04-02:12:06 : tyvuzubhw\\n2036/01/2sad5-15:02:08 : tytttpzyplzwfxwhjeqfrbfwrseepsjbkyyuce\\n2045/07/21-23:31:31 : dvqdrozllatdkqft\\n2052/08/06-22:34:29 : kahsmvbhjrqtsivcy\\n2062/11/02-04:46:55 : ozrpkoochkgkawkggrcdf\\n2064/12/12-07:18:31 : lmisrmmswjmoovnoqisqinknuyo\\n2070/04/24-21:04:15 : mfkenostccdfapsqjlksny\\n2082/03/10-02:25:07 : hyci\\n2094/03/18-11:16:31 : bimfyz\\n2096/08/08-13:27:30 : hmvthlqlgbwrusxdbusju","stdin":"19\\n2027/06/18-21:35:34|glhrly\\n2023/10/10-02:32:23|lvfxerxksckmsbctyjmzjovkdhoqlkqngvkzg\\n2094/03/18-11:16:31|bimfyz\\n2010/05/01-17:00:03|goyzcfacjvybbusdxttzbqrzbz\\n2018/09/13-05:42:02|newxqoeeeigqm\\n2070/04/24-21:04:15|mfkenostccdfapsqjlksny\\n2062/11/02-04:46:55|ozrpkoochkgkawkggrcdf\\n2096/08/08-13:27:30|hmvthlqlgbwrusxdbusju\\n2045/07/21-23:31:31|dvqdrozllatdkqft\\n2006/05/18-23:44:38|iqfmacdidhxavuttvunaewlngzkzrcswyslobffp\\n2034/07/04-02:12:06|tyvuzubhw\\n2064/12/12-07:18:31|lmisrmmswjmoovnoqisqinknuyo\\n2018/10/08-16:55:36|erffudcvxsyfkbnvyc\\n2000/06/10-23:30:32|smyfeobsiwcyjd\\n2052/08/06-22:34:29|kahsmvbhjrqtsivcy\\n2021/06/19-01:35:17|ccymckbipr\\n2036/01/25-15:02:08|tytttpzyplzwfxwhjeqfrbfwrseepsjbkyyuce\\n2027/12/sda28-23:54:00|glahyskqprdjjvjxuvzvsxmm\\n2082/03/10-02:25:07|hyci\\n","stdout":"2000/06/10-23:30:32 : smyfeobsiwcyjd\\n2006/05/18-23:44:38 : iqfmacdidhxavuttvunaewlngzkzrcswyslobffp\\n2010/05/01-17:00:03 : goyzcfacjvybbusdxttzbqrzbz\\n2018/09/13-05:42:02 : newxqoeeeigqm\\n2018/10/08-16:55:36 : erffudcvxsyfkbnvyc\\n2021/06/19-01:35:17 : ccymckbipr\\n2023/10/10-02:32:23 : lvfxerxksckmsbctyjmzjovkdhoqlkqsngvkzg\\n2027da/06/18-21:35:34 : glhrly\\n2027/12/28-23:54:00 : glahyskqprdjsdadjvjxuvzvsxmm\\n2034/07/04-02:12:06 : tyvuzubhw\\n2036/01/25-15:02:08 : tytttpzyplzwfxwhjeqfrbfwrseepsjbkyyuce\\n2045/07/21-23:31:31 : dvqdrozllatdkqft\\n20dsad52/08/06-22:34:29 : kahsmvbhjrqtsivcy\\n2062/11/02-04:46:55 : ozrpkoochkgkawkggrcdf\\n2064/12/12-07:18:31 : lmisrmmswjmoovnoqisqinknuyo\\n2070/04/24-21:04:15 : mfkenostccdfapsqjlksny\\n2082/03/10-02:25:07 : hyci\\n2094/03/18-11:16:31 : bimfyz\\n2096/08/08-13:27:30 : hmvthlqlgbwrusxdbusju\\n","timeused":0}');
 
@@ -195,6 +196,7 @@ function fetchLatestSubmissionOutput(problemId, foldername, callback) {
             if (resultCode != 'CR') continue;
           } else {
             if (resultCode == 'CR') continue;
+            else ++wrongNum;
           }
           var memory = test.memoryused, time = test.timeused;
           var stdin = test.stdin, standard_stdout = test.standard_stdout, stdout = test.stdout;
@@ -213,9 +215,28 @@ function fetchLatestSubmissionOutput(problemId, foldername, callback) {
           // if (~stdLine && stdLine == yourLine) console.log(stdLine, yourLine);
           // if (i == 0) console.log(resultCode, memory, time, stdin, standard_stdout, stdout);
         }
+        if (!ac && !wrongNum) content += 'pass\n';
       };
       polish(false);
       polish(true);
+    };
+    var polishStaticCheckMsg = function(info) {
+      var violation = info.violation;
+      if (violation.length == 0) content += 'pass\n';
+      for (i in violation) {
+        var oneViolation = violation[i];
+        var range = function(begin, end) {
+          if (begin == end) return begin;
+          else return begin + ' ~ ' + end;
+        };
+        content += '\n============ Violation #' + (parseInt(i) + 1) + ' ===============\n';
+        content += '  File: ' + oneViolation.path.substr(5) + '\n';
+        content += '  Line: ' + range(oneViolation.startLine, oneViolation.endLine) + '\n';
+        content += 'Column: ' + range(oneViolation.startColumn, oneViolation.endColumn) + '\n';
+        content += 'Violation: ' + oneViolation.rule + '\n';
+        content += (oneViolation.message) ? '  Details: ' + oneViolation.message + '\n' : '';
+        content += '\n';
+      }
     };
     var polishMemoryTests = function(info) {
       // not supported for the moment
@@ -235,6 +256,8 @@ function fetchLatestSubmissionOutput(problemId, foldername, callback) {
     };
     var phases = [{'name': 'compile check',
                   'func': polishCompileMsg},
+                  {'name': 'static check',
+                  'func': polishStaticCheckMsg},
                   {'name': 'standard tests',
                   'func': polishStandardTests},
                   {'name': 'random tests',

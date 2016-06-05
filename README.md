@@ -8,6 +8,14 @@ Make submission output generated on Matrix more convenient to read and utilize!
 - output with line numbers
 - simple comparison between standard answer output and your output
 
+Supported Phase:
+
+- Compile Check
+- Static Check
+- Standard Tests
+- Random Tests
+
+Memory Check is not supported for the moment.
 
 # Precompiled Binaries (unavailable)
 
