@@ -4,27 +4,12 @@
 # Main Features
 Make submission output generated on Matrix more convenient to read and utilize!
 
-Note: Only txt files encoded in utf-8 are accepted.  
-WARNING: The original file will be OVERWRITTEN. It is wise to backup in advance.
-
-We would appreciate it if you find a **filename that cannot be properly recognized** by the program and are willing to report to us [by email](mailto:yxshw55@qq.com) or [by opening an issue](https://github.com/Mensu/Matrix-Output-Polisher/issues/new)!
-
-# Tutorial
-
-1. Right-click on the json output and select "检查" on Chrome.  
-![right click on nearly unreadable output](http://7xrahq.com1.z0.glb.clouddn.com/matrix-output-polisher-tutorial-right-click.png)
-2. Click to unfold and copy the json test.  
-![unfold](http://7xrahq.com1.z0.glb.clouddn.com/matrix-output-polisher-tutorial-unfold.png)
-![copy-1](http://7xrahq.com1.z0.glb.clouddn.com/matrix-output-polisher-tutorial-copy1.png)
-![copy-2](http://7xrahq.com1.z0.glb.clouddn.com/matrix-output-polisher-tutorial-copy2.png)
-3. Save the test in "output.txt" encoded in **UTF-8** before moving the output.txt to the folder where the MatrixOutputPolisher is located.  
-![save](http://7xrahq.com1.z0.glb.clouddn.com/matrix-output-polisher-tutorial-save.png)
-4. Run the polisher through run.bat/ run.sh (see suggestions on running below) and simply press Enter to obtain a nicer output!  
-![run](http://7xrahq.com1.z0.glb.clouddn.com/matrix-output-polisher-tutorial-run.png)
-![result](http://7xrahq.com1.z0.glb.clouddn.com/matrix-output-polisher-tutorial-result.png)
+- better readability
+- output with line numbers
+- simple comparison between standard answer output and your output
 
 
-# Precompiled Binaries
+# Precompiled Binaries (unavailable)
 
 There are some precompiled binaries ( by using ``enclose`` )
 
@@ -42,7 +27,7 @@ There are some precompiled binaries ( by using ``enclose`` )
 
 You only need to execute it
 
-# Suggestions on running
+# Suggestions on running (unavailable)
 
 - on Windows ( suppose the downloader is located in D:\eden\ )  
  **Note: It is highly recommended that you run the executable binaries under an *ASCII-only* path on Windows.**  
