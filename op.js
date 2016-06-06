@@ -24,17 +24,34 @@ function getMD5(data) { return crypto.createHash('md5').update(data).digest('hex
 function writeFile(path, contents, callback) {
   mkdirp(getDirName(path), function(err) {
     if (err) {
-      if (callback) return console.log('\nError:', err.code, err.message), callback(err);
+      console.log('\nError:', err.code, err.message);
+      if (callback) return callback(err);
       else throw err;
     }
     if (windows) contents = contents.replace(/\n/g, '\r\n');
     fs.writeFile(path, contents, function(err) {
       if (err) {
-        if (callback) return console.log('\nError:', err.code, err.message), callback(err);
+        console.log('\nError:', err.code, err.message);
+        if (callback) return callback(err);
         else throw err;
       }
       else if (callback) return callback(null);
     });
+  });
+}
+
+function createFile(path, contents, callback) {
+  fs.stat(path, function(err, stat) {
+    if (err) {
+      if (err.code == 'ENOENT') return writeFile(path, contents, callback);
+      else {
+        console.log('\nError:', err.code, err.message);
+        if (callback) return callback(err);
+        else throw err;
+      }
+    } else {
+      return callback(null);
+    }
   });
 }
 
@@ -97,185 +114,271 @@ function downloadFile(url, dest, callback) {
 };
 
 function fetchLatestSubmissionOutput(problemId, foldername, getAc, callback) {
-  request.get(matrixRootUrl + '/get-last-submission-report?problemId=' + problemId + '&userId=' + userId, function(e, r, body) {
-    if (e || body.err) {
-      var error = (e) ? e : body.err;
-      console.log('\nError:', error.msg);
-      if (callback) return callback(error);
-      else throw error;
-    }
-    body = JSON.parse(body);
-    var data = body.data[0], content = '';
-    var existanceError = new Error('No useful output detected. You may want to check out the Problem (id = ' + problemId + ') by yourself.');
-    if (!data) {
-      console.log('\nError:', existanceError.message);
-      if (callback) return callback(existanceError);
-      else return;
-    }
-    var grade = data.grade, report = JSON.parse(data.report);
-    if (!report) {
-      console.log('\nError:', existanceError.message);
-      if (callback) return callback(existanceError);
-      else return;
-    }
-
-    // console.log(report);
-
-    var wrap = function(str, append) { return ((typeof(str) != 'undefined') ? (str + ((typeof(append) != 'undefined') ? append : '')) : 'missing\n'); };
-    var wrapBorder = function(str, borderSpaceNum) {
-      var border = ' '.repeat(borderSpaceNum) + '+-----------------------------------\n';
-      return border + str + border;
+  var suffixTime = '';
+  request.get(matrixRootUrl + '/get-one-assignment-info?position=0&problemId=' + problemId + '&status=2&userId=' + userId, function(e, r, body) {
+    var prefixWithZero = function(date) {
+      return date.replace(/(\/)(?=(\d)(\D))/g, '-0').replace(/( )(?=(\d)(\D))/g, ' 0').replace(/(:)(?=(\d)(\D))/g, '::0');
     };
-    var polishTests = function(tests, std) {
-      var prefix = (std) ? 'Standard' : 'Random', noNewLine = '(No \\n at the end)', hasNewLine = '(Has \\n at the end)';
-      var polish = function(ac) {
-        var wrongNum = 0;
-        for (i in tests) {
-          //tests[0] = JSON.parse('{"memoryused":6044,"result":"WA","standard_stdout":"2000/06/10-23:30:32 : smyfeobsiwcyjd\\n2006/05/18-23:44:38 : iqfmacdidhxavuttvunaewlngzkzrcswyslobffp\\n2010/05/01-17:00:03 : goyzcfacjvybbusdxttzbqrzbz\\n2018/09/13-05:42:02 : newxqoeeeigqm\\n2018/10/08-16:55:36 : erffudcvxsyfkbnvyc\\n2021/06/19-01:35:17 : ccymckbipr\\n2023/10/10-02:32:23 : lvfxerxksckmsbctyjmzjovkdhoqlkqngvkzg\\n2027/06/18-21:35:34 : glhrly\\n2027/12/28-23:54:00 : glahyskqprdjjvjxuvzvsxmm\\n2034/07/04-02:12:06 : tyvuzubhw\\n2036/01/2sad5-15:02:08 : tytttpzyplzwfxwhjeqfrbfwrseepsjbkyyuce\\n2045/07/21-23:31:31 : dvqdrozllatdkqft\\n2052/08/06-22:34:29 : kahsmvbhjrqtsivcy\\n2062/11/02-04:46:55 : ozrpkoochkgkawkggrcdf\\n2064/12/12-07:18:31 : lmisrmmswjmoovnoqisqinknuyo\\n2070/04/24-21:04:15 : mfkenostccdfapsqjlksny\\n2082/03/10-02:25:07 : hyci\\n2094/03/18-11:16:31 : bimfyz\\n2096/08/08-13:27:30 : hmvthlqlgbwrusxdbusju","stdin":"19\\n2027/06/18-21:35:34|glhrly\\n2023/10/10-02:32:23|lvfxerxksckmsbctyjmzjovkdhoqlkqngvkzg\\n2094/03/18-11:16:31|bimfyz\\n2010/05/01-17:00:03|goyzcfacjvybbusdxttzbqrzbz\\n2018/09/13-05:42:02|newxqoeeeigqm\\n2070/04/24-21:04:15|mfkenostccdfapsqjlksny\\n2062/11/02-04:46:55|ozrpkoochkgkawkggrcdf\\n2096/08/08-13:27:30|hmvthlqlgbwrusxdbusju\\n2045/07/21-23:31:31|dvqdrozllatdkqft\\n2006/05/18-23:44:38|iqfmacdidhxavuttvunaewlngzkzrcswyslobffp\\n2034/07/04-02:12:06|tyvuzubhw\\n2064/12/12-07:18:31|lmisrmmswjmoovnoqisqinknuyo\\n2018/10/08-16:55:36|erffudcvxsyfkbnvyc\\n2000/06/10-23:30:32|smyfeobsiwcyjd\\n2052/08/06-22:34:29|kahsmvbhjrqtsivcy\\n2021/06/19-01:35:17|ccymckbipr\\n2036/01/25-15:02:08|tytttpzyplzwfxwhjeqfrbfwrseepsjbkyyuce\\n2027/12/sda28-23:54:00|glahyskqprdjjvjxuvzvsxmm\\n2082/03/10-02:25:07|hyci\\n","stdout":"2000/06/10-23:30:32 : smyfeobsiwcyjd\\n2006/05/18-23:44:38 : iqfmacdidhxavuttvunaewlngzkzrcswyslobffp\\n2010/05/01-17:00:03 : goyzcfacjvybbusdxttzbqrzbz\\n2018/09/13-05:42:02 : newxqoeeeigqm\\n2018/10/08-16:55:36 : erffudcvxsyfkbnvyc\\n2021/06/19-01:35:17 : ccymckbipr\\n2023/10/10-02:32:23 : lvfxerxksckmsbctyjmzjovkdhoqlkqsngvkzg\\n2027da/06/18-21:35:34 : glhrly\\n2027/12/28-23:54:00 : glahyskqprdjsdadjvjxuvzvsxmm\\n2034/07/04-02:12:06 : tyvuzubhw\\n2036/01/25-15:02:08 : tytttpzyplzwfxwhjeqfrbfwrseepsjbkyyuce\\n2045/07/21-23:31:31 : dvqdrozllatdkqft\\n20dsad52/08/06-22:34:29 : kahsmvbhjrqtsivcy\\n2062/11/02-04:46:55 : ozrpkoochkgkawkggrcdf\\n2064/12/12-07:18:31 : lmisrmmswjmoovnoqisqinknuyo\\n2070/04/24-21:04:15 : mfkenostccdfapsqjlksny\\n2082/03/10-02:25:07 : hyci\\n2094/03/18-11:16:31 : bimfyz\\n2096/08/08-13:27:30 : hmvthlqlgbwrusxdbusju\\n","timeused":0}');
+    var parseErr = null;
+    try {
+      body = JSON.parse(body);
+    } catch (e) {
+      parseErr = e;
+    }
+    if (e || parseErr || body.err || !body.data.length) {
+      var date = new Date();
+      suffixTime = prefixWithZero('downloaded at ' + date.getFullYear() + '/' + (parseInt(date.getMonth()) + 1) + '/' + date.getDay() + ' ' + date.getHours() + ':' + date.getMinutes() + ':' + date.getSeconds());
+    } else {
+      var latest = body.data[0];
+      suffixTime = prefixWithZero('at ' + latest.submitAt);
+    }
+    request.get(matrixRootUrl + '/get-last-submission-report?problemId=' + problemId + '&userId=' + userId, function(e, r, body) {
+      var parseErr = null;
+      try {
+        body = JSON.parse(body);
+      } catch (e) {
+        parseErr = e;
+      }
+      if (e || parseErr || body.err) {
+        var err = (e) ? e : ((parseErr) ? parseErr : body.err);
+        console.log('\nError:', err.code, err.msg);
+        if (callback) return callback(err);
+        else throw err;
+      }
+      var data = body.data[0], content = '';
+      var existanceError = new Error('No useful output detected. You may want to check out the Problem (id = ' + problemId + ') by yourself.');
+      if (!data) {
+        console.log('\nError:', existanceError.message);
+        if (callback) return callback(existanceError);
+        else return;
+      }
+      var grade = data.grade, report = JSON.parse(data.report);
+      if (!report) {
+        console.log('\nError:', existanceError.message);
+        if (callback) return callback(existanceError);
+        else return;
+      } else if (report.error) {
+        content += '\nError: ' + report.error + '\n';
+      }
+      content += '\nYour Grade: ' + grade + '\n';
+      var wrap = function(str, append) { return ((typeof(str) != 'undefined') ? (str + ((typeof(append) != 'undefined') ? append : '')) : 'missing\n'); };
+      var wrapBorder = function(str, borderSpaceNum) {
+        var border = ' '.repeat(borderSpaceNum) + '+-----------------------------------\n';
+        return border + str + border;
+      };
+      var noNewLine = '(No \\n at the end)', hasNewLine = '(Has \\n at the end)';
+      var wrapStdin = function(str) {
+        if (str.length == 0) return "(No input)\n";
+        else if (str[str.length - 2] != '\n') str += (noNewLine + '\n');
+        else return str;
+      };
+      var polishTests = function(tests, std) {
+        var prefix = (std) ? 'Standard' : 'Random';
+        var polish = function(ac) {
+          var wrongNum = 0;
+          for (i in tests) {
+            //tests[0] = JSON.parse('{"memoryused":6044,"result":"WA","standard_stdout":"2000/06/10-23:30:32 : smyfeobsiwcyjd\\n2006/05/18-23:44:38 : iqfmacdidhxavuttvunaewlngzkzrcswyslobffp\\n2010/05/01-17:00:03 : goyzcfacjvybbusdxttzbqrzbz\\n2018/09/13-05:42:02 : newxqoeeeigqm\\n2018/10/08-16:55:36 : erffudcvxsyfkbnvyc\\n2021/06/19-01:35:17 : ccymckbipr\\n2023/10/10-02:32:23 : lvfxerxksckmsbctyjmzjovkdhoqlkqngvkzg\\n2027/06/18-21:35:34 : glhrly\\n2027/12/28-23:54:00 : glahyskqprdjjvjxuvzvsxmm\\n2034/07/04-02:12:06 : tyvuzubhw\\n2036/01/2sad5-15:02:08 : tytttpzyplzwfxwhjeqfrbfwrseepsjbkyyuce\\n2045/07/21-23:31:31 : dvqdrozllatdkqft\\n2052/08/06-22:34:29 : kahsmvbhjrqtsivcy\\n2062/11/02-04:46:55 : ozrpkoochkgkawkggrcdf\\n2064/12/12-07:18:31 : lmisrmmswjmoovnoqisqinknuyo\\n2070/04/24-21:04:15 : mfkenostccdfapsqjlksny\\n2082/03/10-02:25:07 : hyci\\n2094/03/18-11:16:31 : bimfyz\\n2096/08/08-13:27:30 : hmvthlqlgbwrusxdbusju","stdin":"19\\n2027/06/18-21:35:34|glhrly\\n2023/10/10-02:32:23|lvfxerxksckmsbctyjmzjovkdhoqlkqngvkzg\\n2094/03/18-11:16:31|bimfyz\\n2010/05/01-17:00:03|goyzcfacjvybbusdxttzbqrzbz\\n2018/09/13-05:42:02|newxqoeeeigqm\\n2070/04/24-21:04:15|mfkenostccdfapsqjlksny\\n2062/11/02-04:46:55|ozrpkoochkgkawkggrcdf\\n2096/08/08-13:27:30|hmvthlqlgbwrusxdbusju\\n2045/07/21-23:31:31|dvqdrozllatdkqft\\n2006/05/18-23:44:38|iqfmacdidhxavuttvunaewlngzkzrcswyslobffp\\n2034/07/04-02:12:06|tyvuzubhw\\n2064/12/12-07:18:31|lmisrmmswjmoovnoqisqinknuyo\\n2018/10/08-16:55:36|erffudcvxsyfkbnvyc\\n2000/06/10-23:30:32|smyfeobsiwcyjd\\n2052/08/06-22:34:29|kahsmvbhjrqtsivcy\\n2021/06/19-01:35:17|ccymckbipr\\n2036/01/25-15:02:08|tytttpzyplzwfxwhjeqfrbfwrseepsjbkyyuce\\n2027/12/sda28-23:54:00|glahyskqprdjjvjxuvzvsxmm\\n2082/03/10-02:25:07|hyci\\n","stdout":"2000/06/10-23:30:32 : smyfeobsiwcyjd\\n2006/05/18-23:44:38 : iqfmacdidhxavuttvunaewlngzkzrcswyslobffp\\n2010/05/01-17:00:03 : goyzcfacjvybbusdxttzbqrzbz\\n2018/09/13-05:42:02 : newxqoeeeigqm\\n2018/10/08-16:55:36 : erffudcvxsyfkbnvyc\\n2021/06/19-01:35:17 : ccymckbipr\\n2023/10/10-02:32:23 : lvfxerxksckmsbctyjmzjovkdhoqlkqsngvkzg\\n2027da/06/18-21:35:34 : glhrly\\n2027/12/28-23:54:00 : glahyskqprdjsdadjvjxuvzvsxmm\\n2034/07/04-02:12:06 : tyvuzubhw\\n2036/01/25-15:02:08 : tytttpzyplzwfxwhjeqfrbfwrseepsjbkyyuce\\n2045/07/21-23:31:31 : dvqdrozllatdkqft\\n20dsad52/08/06-22:34:29 : kahsmvbhjrqtsivcy\\n2062/11/02-04:46:55 : ozrpkoochkgkawkggrcdf\\n2064/12/12-07:18:31 : lmisrmmswjmoovnoqisqinknuyo\\n2070/04/24-21:04:15 : mfkenostccdfapsqjlksny\\n2082/03/10-02:25:07 : hyci\\n2094/03/18-11:16:31 : bimfyz\\n2096/08/08-13:27:30 : hmvthlqlgbwrusxdbusju\\n","timeused":0}');
 
-          var wrapStdin = function(str) {
-            if (str.length == 0) return "(No input)\n";
-            else if (str[str.length - 2] != '\n') str += (noNewLine + '\n');
-            else return str;
-          };
-          var stdContent = null, yourContent = null;
-          var addLinenum = function(str, your) {
-            var prefix = ((your) ? 'Your ' : ' Std ');
-            if (str == 'missing\n') return '*********|(Missing)\n';
-            else if (str.length == 0) return "*********|(No output)\n";
-            var length = str.length, ret = '', endWithNewLine = false, moreData = false;
-            if (str.match(/ more data\.\.\.$/)) str = str.substring(0, str.length - 14), moreData = true;
-            else if (str.match(/ more data$/)) str = str.substring(0, str.length - 10), moreData = true;
-            if (!moreData && str[length - 1] == '\n') endWithNewLine = true;
-            str = str.split('\n');
-            for (i in str) ret += sprintf(prefix + '%03d |', parseInt(i) + 1) + str[i] + '\n';
-            if (!endWithNewLine) {
-              ret += prefix + '    |';
-              if (moreData) ret += ' more data...\n';
-              else ret += noNewLine + '\n';
-            } else if (moreData) ret += ' more data...\n';
-            if (typeof(your) == 'boolean') {
-              if (your) yourContent = ret.split('\n');
-              else stdContent = ret.split('\n');
-            }
-            return ret;
-          };
-          var difference = function() {
-            var ret = '';
-            if (!stdContent || !yourContent) return ret;
-            if (stdContent.length == yourContent.length) {
-              for (i in stdContent) {
-                var std = stdContent[i], your = yourContent[i];
-                if (std.substr(10) != your.substr(10)) {
-                  if (i == stdContent.length - 2) {
-                      if (~std.indexOf(noNewLine)) {
-                      your += hasNewLine;
-                    } else if (~your.indexOf(noNewLine)) {
-                      std += hasNewLine;
+            
+            var stdContent = null, yourContent = null;
+            var addLinenum = function(str, your) {
+              var prefix = ((your) ? 'Your ' : ' Std ');
+              if (str == 'missing\n') return '*********|(Missing)\n';
+              else if (str.length == 0) return "*********|(No output)\n";
+              var length = str.length, ret = '', endWithNewLine = false, moreData = false;
+              if (str.match(/ more data\.\.\.$/)) str = str.substring(0, str.length - 14), moreData = true;
+              else if (str.match(/ more data$/)) str = str.substring(0, str.length - 10), moreData = true;
+              if (!moreData && str[length - 1] == '\n') endWithNewLine = true;
+              str = str.split('\n');
+              for (i in str) ret += sprintf(prefix + '%03d |', parseInt(i) + 1) + str[i] + '\n';
+              if (!endWithNewLine) {
+                ret += prefix + '    |';
+                if (moreData) ret += ' more data...\n';
+                else ret += noNewLine + '\n';
+              } else if (moreData) ret += ' more data...\n';
+              if (typeof(your) == 'boolean') {
+                if (your) yourContent = ret.split('\n');
+                else stdContent = ret.split('\n');
+              }
+              return ret;
+            };
+            var difference = function() {
+              var ret = '';
+              if (!stdContent || !yourContent) return ret;
+              if (stdContent.length == yourContent.length) {
+                for (i in stdContent) {
+                  var std = stdContent[i], your = yourContent[i];
+                  if (std.substr(10) != your.substr(10)) {
+                    if (i == stdContent.length - 2) {
+                        if (~std.indexOf(noNewLine)) {
+                        your += hasNewLine;
+                      } else if (~your.indexOf(noNewLine)) {
+                        std += hasNewLine;
+                      }
                     }
+                    ret += std + '\n' + your + '\n         |\n';
                   }
-                  ret += std + '\n' + your + '\n         |\n';
                 }
+              } else {
+                var small = (stdContent.length < yourContent.length) ? stdContent : yourContent;
+                for (i in small) {
+                  var std = stdContent[i], your = yourContent[i];
+                  var wrapLine = function(str, mark) {
+                    if (str.length == 0) return mark + ' ****|(End of output)';
+                    else return str; 
+                  };
+                  if (std.substr(10) != your.substr(10)) {
+                    ret += '*********|(difference appears from here...)\n         |\n';
+                    ret += wrapLine(std, ' Std') + '\n' + wrapLine(your, 'Your') + '\n';
+                    break;
+                  }
+                }
+              }
+              return ret;
+            }
+            var test = tests[i], resultCode = test.result;
+            if (ac) {
+              if (resultCode != 'CR') continue;
+            } else {
+              if (resultCode == 'CR') continue;
+              else ++wrongNum;
+            }
+            var memory = test.memoryused, time = test.timeused;
+            var stdin = test.stdin, standard_stdout = test.standard_stdout, stdout = test.stdout;
+            content += '\n============ ' + prefix + ' Test #' + (parseInt(i) + 1) + ' ===============\n';
+            content += 'Result code: ' + wrap(resultCode) + '\n';
+            content += 'Memory used: ' + wrap(memory, 'KB') + '  Time used: ' + wrap(time, 'ms') + '\n\n';
+            content += ' Test input:\n' + wrapBorder(wrapStdin(wrap(stdin, '\n'), 0)) + '\n';
+            if (ac) {
+              content += '          Answer:\n' + wrapBorder(addLinenum(wrap(stdout)), 9) + '\n';
+            } else {
+              content += '          Standard answer:\n' + wrapBorder(addLinenum(wrap(standard_stdout), false), 9) + '\n';
+              content += '          Your answer:\n' + wrapBorder(addLinenum(wrap(stdout), true), 9) + '\n';
+              var diff = difference();
+              if (diff) content += '          Difference:\n' + wrapBorder(diff, 9);
+            }
+          }
+          if (!ac && !wrongNum) content += 'pass\n';
+        };
+        polish(false);
+        if (getAc) polish(true);
+      };
+      var toContinue = true;
+      var polishCompileMsg = function(info) { content += info + '\n'; };
+      var polishStaticCheckMsg = function(info) {
+        var violation = info.violation;
+        if (violation.length == 0) content += 'pass\n';
+        for (i in violation) {
+          var oneViolation = violation[i];
+          var range = function(begin, end) {
+            if (begin == end) return begin;
+            else return begin + ' ~ ' + end;
+          };
+          content += '\n============ Violation #' + (parseInt(i) + 1) + ' ===============\n';
+          content += '  File: ' + oneViolation.path.substr(5) + '\n';
+          content += '  Line: ' + range(oneViolation.startLine, oneViolation.endLine) + '\n';
+          content += 'Column: ' + range(oneViolation.startColumn, oneViolation.endColumn) + '\n';
+          content += '  Rule: ' + oneViolation.rule + '\n';
+          content += (oneViolation.message) ? 'Detail: ' + oneViolation.message + '\n' : '';
+          content += '\n';
+        }
+      };
+      var polishStandardTests = function(info) { polishTests(info, true); };
+      var polishRandomTests = function(info) { polishTests(info, false); };
+      var polishMemoryTests = function(info) {
+        for (i in info) {
+          var test = info[i];
+          var stdin = test.stdin, errors = test.valgrindoutput.error;
+          if (!errors) {
+            content += 'pass\n';
+            break;
+          }
+          content += '\n============ Memory Test #' + (parseInt(i) + 1) + ' ===============\n';
+          content += '\n Test input:\n' + wrapBorder(wrapStdin(wrap(stdin, '\n'), 0)) + '\n';
+          for (j in errors) {
+            var oneError = errors[j], behavior = oneError.what;
+            
+            content += '------------ Error #' + (parseInt(j) + 1) + ' -----------\n';
+            content += 'Behavior: ' + wrap(behavior) + '\n';
+            if (!behavior) continue;
+            var auxwhat = oneError.auxwhat, stack = oneError.stack;
+            if (behavior == 'Invalid free() / delete / delete[] / realloc()'
+              || ~behavior.indexOf('Invalid read of size')
+              || ~behavior.indexOf('Invalid write of size')
+              || behavior == 'Conditional jump or move depends on uninitialised value(s)') {
+              for (k in stack) {
+                var frame = stack[k].frame;
+                if (k == 0) content += '  ';
+                else content += ((k == 1) ? '' : ' ') + auxwhat[k - 1] + ':\n  ';
+                for (l in frame) {
+                  var funcInfo = frame[l];
+                  if (l != 0) content += 'by:';
+                  else content += 'at:';
+                  if (funcInfo.file && funcInfo.line) content += ' ' + funcInfo.file + ' Line ' + funcInfo.line + '\n  ';
+                  content += '  ' + funcInfo.fn + '\n  ';
+                }
+                content += '\n';
+              }
+            } else if (~behavior.indexOf('are definitely lost in loss record')) {
+              for (k in stack) {
+                var frame = stack[k].frame;
+                if (k == 0) content += '  ';
+                else content += auxwhat[0] + ':\n  ';
+                for (l in frame) {
+                  var funcInfo = frame[l];
+                  if (l != 0) content += 'by:';
+                  else content += 'at:';
+                  if (funcInfo.file && funcInfo.line) content += ' ' + funcInfo.file + ' Line ' + funcInfo.line + '\n  ';
+                  content += '  ' + funcInfo.fn + '\n  ';
+                }
+                content += '\n';
               }
             } else {
-              var small = (stdContent.length < yourContent.length) ? stdContent : yourContent;
-              for (i in small) {
-                var std = stdContent[i], your = yourContent[i];
-                var wrapLine = function(str, mark) {
-                  if (str.length == 0) return mark + ' ****|(End of output)';
-                  else return str; 
-                };
-                if (std.substr(10) != your.substr(10)) {
-                  ret += '*********|(difference appears from here...)\n         |\n';
-                  ret += wrapLine(std, ' Std') + '\n' + wrapLine(your, 'Your') + '\n';
-                  break;
+              for (k in auxwhat) content += auxwhat[k] + '\n';
+              for (k in stack) {
+                var frame = stack[k].frame;
+                content += '  ';
+                for (l in frame) {
+                  var funcInfo = frame[l];
+                  if (l != 0) content += 'by:';
+                  else content += 'at:';
+                  if (funcInfo.file && funcInfo.line) content += ' ' + funcInfo.file + ' Line ' + funcInfo.line + '\n  ';
+                  content += '  ' + funcInfo.fn + '\n  ';
                 }
+                content += '\n';
               }
             }
-            return ret;
+            content += '\n';
           }
-          var test = tests[i], resultCode = test.result;
-          if (ac) {
-            if (resultCode != 'CR') continue;
-          } else {
-            if (resultCode == 'CR') continue;
-            else ++wrongNum;
-          }
-          var memory = test.memoryused, time = test.timeused;
-          var stdin = test.stdin, standard_stdout = test.standard_stdout, stdout = test.stdout;
-          content += '\n============ ' + prefix + ' Test #' + (parseInt(i) + 1) + ' ===============\n';
-          content += 'Result code: ' + wrap(resultCode) + '\n';
-          content += 'Memory used: ' + wrap(memory, 'KB') + '  Time used: ' + wrap(time, 'ms') + '\n\n';
-          content += ' Test input:\n' + wrapBorder(wrapStdin(wrap(stdin, '\n'), 0)) + '\n';
-          if (ac) {
-            content += '          Answer:\n' + wrapBorder(addLinenum(wrap(stdout)), 9) + '\n';
-          } else {
-            content += '          Standard answer:\n' + wrapBorder(addLinenum(wrap(standard_stdout), false), 9) + '\n';
-            content += '          Your answer:\n' + wrapBorder(addLinenum(wrap(stdout), true), 9) + '\n';
-            var diff = difference();
-            if (diff) content += '          Difference:\n' + wrapBorder(diff, 9);
-          }
-          // if (~stdLine && stdLine == yourLine) console.log(stdLine, yourLine);
-          // if (i == 0) console.log(resultCode, memory, time, stdin, standard_stdout, stdout);
         }
-        if (!ac && !wrongNum) content += 'pass\n';
       };
-      polish(false);
-      if (getAc) polish(true);
-    };
-    var toContinue = true;
-    var polishCompileMsg = function(info) { content += info + '\n'; };
-    var polishStaticCheckMsg = function(info) {
-      var violation = info.violation;
-      if (violation.length == 0) content += 'pass\n';
-      for (i in violation) {
-        var oneViolation = violation[i];
-        var range = function(begin, end) {
-          if (begin == end) return begin;
-          else return begin + ' ~ ' + end;
-        };
-        content += '\n============ Violation #' + (parseInt(i) + 1) + ' ===============\n';
-        content += '  File: ' + oneViolation.path.substr(5) + '\n';
-        content += '  Line: ' + range(oneViolation.startLine, oneViolation.endLine) + '\n';
-        content += 'Column: ' + range(oneViolation.startColumn, oneViolation.endColumn) + '\n';
-        content += '  Rule: ' + oneViolation.rule + '\n';
-        content += (oneViolation.message) ? 'Detail: ' + oneViolation.message + '\n' : '';
-        content += '\n';
-      }
-    };
-    var polishStandardTests = function(info) { polishTests(info, true); };
-    var polishRandomTests = function(info) { polishTests(info, false); };
-    var polishMemoryTests = function(info) {
-      // not supported for the moment
-    };
-    var polishPhase = function(phase, func) {
-      if (toContinue && report[phase] && report[phase][phase]) {
-        toContinue = report[phase]['continue'];
-        content += '\n>>>>>>>>>>>>>>>>>> [' + phase + '] <<<<<<<<<<<<<<<<<<<<<<<\nGrade: ' + report[phase]['grade'] + '\n';
-        return func(report[phase][phase]);
-      } else {
-        return;
-      }
-    };
-    var phases = [{'name': 'compile check',
-                  'func': polishCompileMsg},
-                  {'name': 'static check',
-                  'func': polishStaticCheckMsg},
-                  {'name': 'standard tests',
-                  'func': polishStandardTests},
-                  {'name': 'random tests',
-                  'func': polishRandomTests},
-                  {'name': 'memory check',
-                  'func': polishMemoryTests}];
-    for (i in phases) polishPhase(phases[i].name, phases[i].func);
-    writeFile(savePath + '/' + foldername + '/' + 'Latest Submission Output.txt', content, function(err) {
-      if (err) {
+      var polishPhase = function(phase, func) {
+        if (toContinue && report[phase] && report[phase][phase]) {
+          toContinue = report[phase]['continue'];
+          content += '\n>>>>>>>>>>>>>>>>>> [' + phase + '] <<<<<<<<<<<<<<<<<<<<<<<\nGrade: ' + report[phase]['grade'] + '\n';
+          return func(report[phase][phase]);
+        } else {
+          return;
+        }
+      };
+      var phases = [{'name': 'compile check',
+                    'func': polishCompileMsg},
+                    {'name': 'static check',
+                    'func': polishStaticCheckMsg},
+                    {'name': 'standard tests',
+                    'func': polishStandardTests},
+                    {'name': 'random tests',
+                    'func': polishRandomTests},
+                    {'name': 'memory check',
+                    'func': polishMemoryTests}];
+      for (i in phases) polishPhase(phases[i].name, phases[i].func);
+      createFile(savePath + '/' + foldername + '/' + 'Latest Submission Outputs/Submission Output ' + ((getAc) ? '(including CR samples) ' : '') + suffixTime + '.txt', content, function(err) {
         if (callback) return callback(err);
-      } else {
-        if (callback) return callback(null);
-      }
+        else return;
+      });
     });
   });
+  
 }
 
 
@@ -322,10 +425,16 @@ function FetchOne(problemId, tobeDone, getAc, callback) {
       if (callback) return callback(e);
       else return;
     }
-    body = JSON.parse(body);
-    if (body.err) {
-      console.log('\nError:', body.msg);
-      return informFetchResult(body.err, problemId);
+    var parseErr = null;
+    try {
+      body = JSON.parse(body);
+    } catch (e) {
+      parseErr = e;
+    }
+    if (parseErr || body.err) {
+      var err = (parseErr) ? parseErr : body.err;
+      console.log('\nError:', err.code, err.msg);
+      return informFetchResult(err, problemId);
     }
     var data = body.data, config = JSON.parse(data.config), supportFiles = data.supportFiles;
     var title = data.title, c11 = false;
@@ -412,8 +521,8 @@ function UsersDataManager(filename, callback) {
   this.total = 0;
   var self = this;
   UsersDataManager.prototype.readDataFrom = function(filename, callback) {
-    fs.exists(filename, function(exist) {
-      if (!exist) {
+    fs.stat(filename, function(err, stat) {
+      if (err) {
           // create an empty usersDataManager object
         self.data = {"users": []};
         self.total = self.data.users.length;
@@ -592,8 +701,8 @@ function loginMatrix(fromData, loginUsername, password) {
       }
     }
     username = loginUsername, userId = body.data.id, savePath += '/' + username;
-    if (chinese) console.log("用户", username, "登录成功");
-    else console.log("Logged in with username", username);
+    if (chinese) console.log('用户', body.data.nickname, '登录成功 (用户名: ' + username + ')');
+    else console.log('Logged in as ' + body.data.nickname + ' (username: ' + username + ')');
     if (fromData) {
         // login with the combination from usersDataManager => get Id directly
       return getAssignmentsId();
