@@ -1,7 +1,7 @@
 var windows32 = false;
 var windows = false;
 var ByEncloseJS = false;
-var chinese = true;
+var chinese = false;
 
 var sanitize = require('sanitize-filename');
 var request = require('request');
@@ -24,13 +24,13 @@ function getMD5(data) { return crypto.createHash('md5').update(data).digest('hex
 function writeFile(path, contents, callback) {
   mkdirp(getDirName(path), function(err) {
     if (err) {
-      if (callback) return console.log('\nError:', err.message), callback(err);
+      if (callback) return console.log('\nError:', err.code, err.message), callback(err);
       else throw err;
     }
     if (windows) contents = contents.replace(/\n/g, '\r\n');
     fs.writeFile(path, contents, function(err) {
       if (err) {
-        if (callback) return console.log('\nError:', err.message), callback(err);
+        if (callback) return console.log('\nError:', err.code, err.message), callback(err);
         else throw err;
       }
       else if (callback) return callback(null);
@@ -38,16 +38,19 @@ function writeFile(path, contents, callback) {
   });
 }
 
-function connectionFailed(e) {
+function informConnectionFailed(err, problemId) {
+  var hint = '', insertProblemId = ((problemId) ? ((chinese) ? 'Problem ' + problemId + ' 不存在，' : ' , nonexistence of the Problem ' + problemId) : '');
+  if (chinese) hint = '  *** 这可能是因为您的电脑没有连网，' + insertProblemId + '或者 TA 叶嘉祺正在更新代码。';
+  else hint = '  *** Lack of access to internet' + insertProblemId + ' or TA Ye Jiaqi being updating codes may cause this error. ';
+  if (!problemId) console.log('');
   if (chinese) {
-    console.log("\n连接错误: 无法连接到Matrix，请稍后再试:(");
-    console.log("  *** 这可能是因为您的电脑没有连网，或者TA叶嘉祺正在更新代码。");
+    console.log('连接错误: 无法连接到 Matrix，请稍后再试:(');
+    console.log(hint);
   } else {
-    console.log("\nConnectionError: Failed to connect to Matrix, please try again later:(");
-    console.log("  *** Lack of access to internet or TA Ye Jiaqi being updating codes \
-may cause this problem. ");
+    console.log('ConnectionError: Failed to connect to Matrix, please try again later:(');
+    console.log(hint);
   }
-  throw e;
+  if (err) throw err;
 }
 
 function encloseJSWarning() {
@@ -67,7 +70,7 @@ su/eden-asgn-batchdl-nodejs) for more information.\n');
 function downloadFile(url, dest, callback) {
   mkdirp(getDirName(dest), function(err) {
     if (err) {
-      if (callback) return console.log('', err.message, '\n  ... Error occurred when downloading ' + dest), callback(err);
+      if (callback) return console.log('', err.code, err.message, '\n  ... Error occurred when downloading ' + dest), callback(err);
       else throw err;
     }
     var file = fs.createWriteStream(dest);
@@ -80,7 +83,7 @@ function downloadFile(url, dest, callback) {
     // check for request errors
     sendReq.on('error', function(err) {
       fs.unlink(dest);
-      if (callback) return console.log('', err.message, '\n  ... Error occurred when downloading ' + dest), callback(err);
+      if (callback) return console.log('', err.code, err.message, '\n  ... Error occurred when downloading ' + dest), callback(err);
     });
     sendReq.pipe(file);
     file.on('finish', function() {
@@ -88,7 +91,7 @@ function downloadFile(url, dest, callback) {
     });
     file.on('error', function(err) {  // Handle errors
       fs.unlink(dest); // Delete the file async.
-      if (callback) return console.log('', err.message, '\n  ... Error occurred when downloading ' + dest), callback(err);
+      if (callback) return console.log('', err.code, err.message, '\n  ... Error occurred when downloading ' + dest), callback(err);
     });
   });
 };
@@ -103,7 +106,7 @@ function fetchLatestSubmissionOutput(problemId, foldername, getAc, callback) {
     }
     body = JSON.parse(body);
     var data = body.data[0], content = '';
-    var existanceError = new Error('No useful output detected. You might want to have a look at the problem (id = ' + problemId + ') by yourself.');
+    var existanceError = new Error('No useful output detected. You may want to check out the Problem (id = ' + problemId + ') by yourself.');
     if (!data) {
       console.log('\nError:', existanceError.message);
       if (callback) return callback(existanceError);
@@ -220,6 +223,8 @@ function fetchLatestSubmissionOutput(problemId, foldername, getAc, callback) {
       polish(false);
       if (getAc) polish(true);
     };
+    var toContinue = true;
+    var polishCompileMsg = function(info) { content += info + '\n'; };
     var polishStaticCheckMsg = function(info) {
       var violation = info.violation;
       if (violation.length == 0) content += 'pass\n';
@@ -233,18 +238,16 @@ function fetchLatestSubmissionOutput(problemId, foldername, getAc, callback) {
         content += '  File: ' + oneViolation.path.substr(5) + '\n';
         content += '  Line: ' + range(oneViolation.startLine, oneViolation.endLine) + '\n';
         content += 'Column: ' + range(oneViolation.startColumn, oneViolation.endColumn) + '\n';
-        content += 'Violation: ' + oneViolation.rule + '\n';
-        content += (oneViolation.message) ? '  Details: ' + oneViolation.message + '\n' : '';
+        content += '  Rule: ' + oneViolation.rule + '\n';
+        content += (oneViolation.message) ? 'Detail: ' + oneViolation.message + '\n' : '';
         content += '\n';
       }
     };
+    var polishStandardTests = function(info) { polishTests(info, true); };
+    var polishRandomTests = function(info) { polishTests(info, false); };
     var polishMemoryTests = function(info) {
       // not supported for the moment
     };
-    var toContinue = true;
-    var polishCompileMsg = function(info) { content += info + '\n'; };
-    var polishStandardTests = function(info) { polishTests(info, true); };
-    var polishRandomTests = function(info) { polishTests(info, false); };
     var polishPhase = function(phase, func) {
       if (toContinue && report[phase] && report[phase][phase]) {
         toContinue = report[phase]['continue'];
@@ -310,18 +313,19 @@ function downloadStandardAnswerBinaries(Id, savePath, callback) {
   // });
 }
 
-function FetchOne(Id, tobeDone, getAc, callback) {
-  request.get(matrixRootUrl + '/get-problem-by-id?problemId=' + Id, function(e, r, body) {
+function FetchOne(problemId, tobeDone, getAc, callback) {
+  request.get(matrixRootUrl + '/get-problem-by-id?problemId=' + problemId, function(e, r, body) {
     if (e) {
-      console.log('\nError:', e.message);
-      informFetchResult(e, Id);
+      console.log('\nError:', e.code, e.message);
+      informConnectionFailed(null, problemId);
+      informFetchResult(e, problemId);
       if (callback) return callback(e);
       else return;
     }
     body = JSON.parse(body);
     if (body.err) {
       console.log('\nError:', body.msg);
-      return informFetchResult(body.err, Id);
+      return informFetchResult(body.err, problemId);
     }
     var data = body.data, config = JSON.parse(data.config), supportFiles = data.supportFiles;
     var title = data.title, c11 = false;
@@ -329,18 +333,18 @@ function FetchOne(Id, tobeDone, getAc, callback) {
     var author = data.author, memoryLimit = config.limits.memory + 'MB', timeLimit = config.limits.time + 'ms';
     // console.log(c11, "s\n", config, "s\n", supportFiles, "s\n", author, memoryLimit, timeLimit);
     var error = null;
-    // if (tobeDone) console.log(((chinese) ? "正在获取未完成的 Assignment" : "Fetching unfinished assignment"), Id, "....");
-    // else console.log(((chinese) ? "正在获取 Assignment" : "Fetching assignment"), Id, "....");
-    fetchLatestSubmissionOutput(Id, Id + ' ' + title, getAc, function(err) {
+    // if (tobeDone) console.log(((chinese) ? "正在获取未完成的 Assignment" : "Fetching unfinished assignment"), problemId, "....");
+    // else console.log(((chinese) ? "正在获取 Assignment" : "Fetching assignment"), problemId, "....");
+    fetchLatestSubmissionOutput(problemId, problemId + ' ' + title, getAc, function(err) {
       if (err) error = err;
-      informFetchResult(error, Id);
+      informFetchResult(error, problemId);
       if (callback) return callback();
     });
     
 //         // it would be better to encapsulate this section as an exception
 //       if (blockTag.length == 0) {
 //         if (chinese) {
-//           console.log("\n错误：页面上没有代码文件 (出错的id为" + Id + ")");
+//           console.log("\n错误：页面上没有代码文件 (出错的id为" + problemId + ")");
 //           console.log("  *** 建议您亲自登录Eden查看该作业是否真实存在、正在改分、或者被判抄袭。");
 //           if (~$('#main font').text().indexOf('plagiarism')) console.log('  *** 提示：您的这次作业似乎被判了抄袭。');
 //           console.log('  ... 下载 Assignment ' + Id + ' 时出错。');
@@ -362,7 +366,7 @@ function informFetchResult(error, Id) {
     if (error) console.log('  ... 下载 Problem ' + Id + ' 时出错。');
     else console.log('  ... 成功下载 Problem ' + Id + '!');
   } else {
-    if (error) console.log('  ... There occurred some problems when Problem ' + Id + ' are being downloaded.');
+    if (error) console.log('  ... There occurred some errors when Problem ' + Id + ' are being downloaded.');
     else console.log('  ... Problem ' + Id + ' downloaded successfully!');
   }
 }
@@ -382,7 +386,7 @@ function informFetchResult(error, Id) {
 // function fetchUnfinished(username, idArray, callback) {
   // request.get(edenPrefix + 'ass/', function(e, r, body) {
   //   if (e) {
-  //     connectionFailed(e);
+  //     informConnectionFailed(e);
   //     throw e;
   //   }
   //   jQexec(body, function(err, window) {
@@ -418,7 +422,7 @@ function UsersDataManager(filename, callback) {
           // read the file
         fs.readFile(filename, 'utf-8', function(err, rawData) {
           if (err) {
-            if (callback) console.log('\nError:', err.message), callback(err);
+            if (callback) console.log('\nError:', err.code, err.message), callback(err);
             else throw err;
           } else {
               // create a usersDataManager object from the file
@@ -428,7 +432,7 @@ function UsersDataManager(filename, callback) {
               for (i in self.data.users) 
                 if (self.data.users[i].username.length && self.data.users[i].password.length) ++self.total;
             } catch (e) {
-              console.log('\nError:', e.name + ": " + e.message);
+              console.log('\nError:', e.code + ": " + e.message);
               if (chinese) console.log('  *** 错误：' + filename + ' 文件似乎被修改过，无法被解释器识别了。\
 原来的 ' + filename + ' 文件将会在下一次储存用户名密码的时候被覆盖。');
               else console.log('  *** Error: It seems that data stored in ' + filename + ' have \
@@ -482,8 +486,8 @@ new username and password patterns are allowed to stored.');
     --(this.total);
     this.writeDataTo(usersdataFilename, function(err) {
       if (err) {
-        if (chinese) console.log('\nError:', err.message, '\n保存失败\n');
-        else console.log('\nError:', err.message, '\nFailed to store\n');
+        if (chinese) console.log('\nError:', err.code, err.message, '\n保存失败\n');
+        else console.log('\nError:', err.code, err.message, '\nFailed to store\n');
         if (callback) return callback();
       }
       if (callback) return callback();
@@ -509,14 +513,14 @@ function getAssignmentsId() {
     console.log('  *** 像 586 587a 588 a 5 6 7');
     console.log('         => 586(不要CR) 587(要CR) 588(不要CR) 5(要CR) 6(要CR) 7(要CR)');
   } else {
-    console.log("Please input the Problem id");
+    console.log("Please input Problem Id");
     // console.log('or [simply press Enter] to fetch unfinished Problems');
-    console.log('  *** Note: a valid problem id is a number like 588');
+    console.log('  *** Note: a valid Problem Id is a number like 588');
     console.log('  *** Multiple ids are allowed like 586 587 588, with ids separated by spaces');
     console.log('  *** By default correct samples (CR) are not displayed');
     console.log('  *** To check out correct samples, you may input an "a" as an id');
-    console.log('  *** In this way, correct samples will be displayed in the output of problems after the "a"');
-    console.log('  *** You may also append an "a" after an id the correct samples of which you would like to check out');
+    console.log('  *** and correct samples will be displayed in the output of Problems after the "a"');
+    console.log('  *** You may also append an "a" after an id the correct samples of which you would like to check out,');
     console.log('  *** like 586 587a 588 a 5 6 7');
     console.log('         => 586(No CR) 587(CR) 588(No CR) 5(CR) 6(CR) 7(CR)');
   }
@@ -538,7 +542,7 @@ function getAssignmentsId() {
       if (!fetched && oneId.match(/^u$/)) {
 
       } else if (oneId.match(/^[Aa]$/)) {
-        ++countValidId, getAcOutput = true;
+        getAcOutput = true;
       } else if (oneId.match(/^((\d){1,})([Aa]{0,1})$/)) {
         ++countValidId;
         if (oneId.match(/[Aa]$/)) FetchOne(oneId.substring(0, oneId.length - 1), false, true);
@@ -568,7 +572,7 @@ function loginMatrix(fromData, loginUsername, password) {
       'password': password,
     }
   }, function(e, response, body) {
-    if (e) return connectionFailed(e);
+    if (e) return informConnectionFailed(e);
     body = JSON.parse(body);
     if (body.err) {
       var errorText = body.msg, incorrectCombi = false;  // incorrect username and password combination
@@ -609,8 +613,8 @@ function loginMatrix(fromData, loginUsername, password) {
           usersDataManager.addAccount(username, password);
           usersDataManager.writeDataTo(usersdataFilename, function(err) {
             if (err) {
-              if (chinese) console.log('\nError:', err.message, '\n保存失败\n');
-              else console.log('\nError:', err.message, '\nFailed to store\n');
+              if (chinese) console.log('\nError:', err.code, err.message, '\n保存失败\n');
+              else console.log('\nError:', err.code, err.message, '\nFailed to store\n');
               return getAssignmentsId();
             }
             if (chinese) console.log('... 保存成功\n');
@@ -695,8 +699,7 @@ function welcome() {
 
 request.get(matrixRootUrl, function(err, response, body) {
   if (err) {
-    connectionFailed(err);
-    throw err;
+    informConnectionFailed(err);
   }
   new UsersDataManager(usersdataFilename, function(err, self) {
     if (err) return;
