@@ -14,9 +14,11 @@ var getDirName = path.dirname;
 var fs = require('fs');
 var crypto = require('crypto');
 var sprintf = require('sprintf-js').sprintf;
+var jsDiff = require('diff');
 
 var matrixRootUrl = 'https://eden.sysu.edu.cn';
 var usersdataFilename = '.usersdata';
+var submissionOutputExtension = '.txt';
 var username = '', userId = '', usersDataManager = null, savePath = './saved';
 
 function getMD5(data) { return crypto.createHash('md5').update(data).digest('hex'); }
@@ -40,7 +42,8 @@ function writeFile(path, contents, callback) {
   });
 }
 
-function createFile(path, contents, callback) {
+function createFile(overwrite, path, contents, callback) {
+  if (overwrite) return writeFile(path, contents, callback);
   fs.stat(path, function(err, stat) {
     if (err) {
       if (err.code == 'ENOENT') return writeFile(path, contents, callback);
@@ -117,7 +120,7 @@ function fetchLatestSubmissionOutput(problemId, foldername, getAc, callback) {
   var suffixTime = '';
   request.get(matrixRootUrl + '/get-one-assignment-info?position=0&problemId=' + problemId + '&status=2&userId=' + userId, function(e, r, body) {
     var prefixWithZero = function(date) {
-      return date.replace(/(\/)(?=(\d)(\D))/g, '-0').replace(/( )(?=(\d)(\D))/g, ' 0').replace(/(:)(?=(\d)(\D))/g, '::0');
+      return date.replace(/(\/)(?=(\d)(\D))/g, '-0').replace(/( )(?=(\d)(\D))/g, ' 0').replace(/(:)(?=(\d)(\D))/g, ':0');
     };
     var parseErr = null;
     try {
@@ -177,60 +180,46 @@ function fetchLatestSubmissionOutput(problemId, foldername, getAc, callback) {
         var polish = function(ac) {
           var wrongNum = 0;
           for (i in tests) {
-            //tests[0] = JSON.parse('{"memoryused":6044,"result":"WA","standard_stdout":"2000/06/10-23:30:32 : smyfeobsiwcyjd\\n2006/05/18-23:44:38 : iqfmacdidhxavuttvunaewlngzkzrcswyslobffp\\n2010/05/01-17:00:03 : goyzcfacjvybbusdxttzbqrzbz\\n2018/09/13-05:42:02 : newxqoeeeigqm\\n2018/10/08-16:55:36 : erffudcvxsyfkbnvyc\\n2021/06/19-01:35:17 : ccymckbipr\\n2023/10/10-02:32:23 : lvfxerxksckmsbctyjmzjovkdhoqlkqngvkzg\\n2027/06/18-21:35:34 : glhrly\\n2027/12/28-23:54:00 : glahyskqprdjjvjxuvzvsxmm\\n2034/07/04-02:12:06 : tyvuzubhw\\n2036/01/2sad5-15:02:08 : tytttpzyplzwfxwhjeqfrbfwrseepsjbkyyuce\\n2045/07/21-23:31:31 : dvqdrozllatdkqft\\n2052/08/06-22:34:29 : kahsmvbhjrqtsivcy\\n2062/11/02-04:46:55 : ozrpkoochkgkawkggrcdf\\n2064/12/12-07:18:31 : lmisrmmswjmoovnoqisqinknuyo\\n2070/04/24-21:04:15 : mfkenostccdfapsqjlksny\\n2082/03/10-02:25:07 : hyci\\n2094/03/18-11:16:31 : bimfyz\\n2096/08/08-13:27:30 : hmvthlqlgbwrusxdbusju","stdin":"19\\n2027/06/18-21:35:34|glhrly\\n2023/10/10-02:32:23|lvfxerxksckmsbctyjmzjovkdhoqlkqngvkzg\\n2094/03/18-11:16:31|bimfyz\\n2010/05/01-17:00:03|goyzcfacjvybbusdxttzbqrzbz\\n2018/09/13-05:42:02|newxqoeeeigqm\\n2070/04/24-21:04:15|mfkenostccdfapsqjlksny\\n2062/11/02-04:46:55|ozrpkoochkgkawkggrcdf\\n2096/08/08-13:27:30|hmvthlqlgbwrusxdbusju\\n2045/07/21-23:31:31|dvqdrozllatdkqft\\n2006/05/18-23:44:38|iqfmacdidhxavuttvunaewlngzkzrcswyslobffp\\n2034/07/04-02:12:06|tyvuzubhw\\n2064/12/12-07:18:31|lmisrmmswjmoovnoqisqinknuyo\\n2018/10/08-16:55:36|erffudcvxsyfkbnvyc\\n2000/06/10-23:30:32|smyfeobsiwcyjd\\n2052/08/06-22:34:29|kahsmvbhjrqtsivcy\\n2021/06/19-01:35:17|ccymckbipr\\n2036/01/25-15:02:08|tytttpzyplzwfxwhjeqfrbfwrseepsjbkyyuce\\n2027/12/sda28-23:54:00|glahyskqprdjjvjxuvzvsxmm\\n2082/03/10-02:25:07|hyci\\n","stdout":"2000/06/10-23:30:32 : smyfeobsiwcyjd\\n2006/05/18-23:44:38 : iqfmacdidhxavuttvunaewlngzkzrcswyslobffp\\n2010/05/01-17:00:03 : goyzcfacjvybbusdxttzbqrzbz\\n2018/09/13-05:42:02 : newxqoeeeigqm\\n2018/10/08-16:55:36 : erffudcvxsyfkbnvyc\\n2021/06/19-01:35:17 : ccymckbipr\\n2023/10/10-02:32:23 : lvfxerxksckmsbctyjmzjovkdhoqlkqsngvkzg\\n2027da/06/18-21:35:34 : glhrly\\n2027/12/28-23:54:00 : glahyskqprdjsdadjvjxuvzvsxmm\\n2034/07/04-02:12:06 : tyvuzubhw\\n2036/01/25-15:02:08 : tytttpzyplzwfxwhjeqfrbfwrseepsjbkyyuce\\n2045/07/21-23:31:31 : dvqdrozllatdkqft\\n20dsad52/08/06-22:34:29 : kahsmvbhjrqtsivcy\\n2062/11/02-04:46:55 : ozrpkoochkgkawkggrcdf\\n2064/12/12-07:18:31 : lmisrmmswjmoovnoqisqinknuyo\\n2070/04/24-21:04:15 : mfkenostccdfapsqjlksny\\n2082/03/10-02:25:07 : hyci\\n2094/03/18-11:16:31 : bimfyz\\n2096/08/08-13:27:30 : hmvthlqlgbwrusxdbusju\\n","timeused":0}');
+            // tests[0] = JSON.parse('{"memoryused":6044,"result":"WA","standard_stdout":"2000/06/10-23:30:32 : smyfeobsiwcyjd\\n2006/05/18-23:44:38 : iqfmacdidhxavuttvunaewlngzkzrcswyslobffp\\n2010/05/01-17:00:03 : goyzcfacjvybbusdxttzbqrzbz\\n2018/09/13-05:42:02 : newxqoeeeigqm\\n2018/10/08-16:55:36 : erffudcvxsyfkbnvyc\\n2021/06/19-01:35:17 : ccymckbipr\\n2023/10/10-02:32:23 : lvfxerxksckmsbctyjmzjovkdhoqlkqngvkzg\\n2027/06/18-21:35:34 : glhrly\\n2027/12/28-23:54:00 : glahyskqprdjjvjxuvzvsxmm\\n2034/07/04-02:12:06 : tyvuzubhw\\n2036/01/2sad5-15:02:08 : tytttpzyplzwfxwhjeqfrbfwrseepsjbkyyuce\\n2045/07/21-23:31:31 : dvqdrozllatdkqft\\n2052/08/06-22:34:29 : kahsmvbhjrqtsivcy\\n2062/11/02-04:46:55 : ozrpkoochkgkawkggrcdf\\n2064/12/12-07:18:31 : lmisrmmswjmoovnoqisqinknuyo\\n2070/04/24-21:04:15 : mfkenostccdfapsqjlksny\\n2082/03/10-02:25:07 : hyci\\n2094/03/18-11:16:31 : bimfyz\\n2096/08/08-13:27:30 : hmvthlqlgbwrusxdbusju\\n","stdin":"19\\n2027/06/18-21:35:34|glhrly\\n2023/10/10-02:32:23|lvfxerxksckmsbctyjmzjovkdhoqlkqngvkzg\\n2094/03/18-11:16:31|bimfyz\\n2010/05/01-17:00:03|goyzcfacjvybbusdxttzbqrzbz\\n2018/09/13-05:42:02|newxqoeeeigqm\\n2070/04/24-21:04:15|mfkenostccdfapsqjlksny\\n2062/11/02-04:46:55|ozrpkoochkgkawkggrcdf\\n2096/08/08-13:27:30|hmvthlqlgbwrusxdbusju\\n2045/07/21-23:31:31|dvqdrozllatdkqft\\n2006/05/18-23:44:38|iqfmacdidhxavuttvunaewlngzkzrcswyslobffp\\n2034/07/04-02:12:06|tyvuzubhw\\n2064/12/12-07:18:31|lmisrmmswjmoovnoqisqinknuyo\\n2018/10/08-16:55:36|erffudcvxsyfkbnvyc\\n2000/06/10-23:30:32|smyfeobsiwcyjd\\n2052/08/06-22:34:29|kahsmvbhjrqtsivcy\\n2021/06/19-01:35:17|ccymckbipr\\n2036/01/25-15:02:08|tytttpzyplzwfxwhjeqfrbfwrseepsjbkyyuce\\n2027/12/sda28-23:54:00|glahyskqprdjjvjxuvzvsxmm\\n2082/03/10-02:25:07|hyci\\n","stdout":"2000/06/10-23:30:32 : smyfeobsiwcyjd\\n2006/05/18-23:44:38 : iqfmacdidhxavuttvunaewlngzkzrcswyslobffp\\n2010/05/01-17:00:03 : goyzcfacjvybbusdxttzbqrzbz\\n2018/09/13-05:42:02 : newxqoeeeigqm\\n2018/10/08-16:55:36 : erffudcvxsyfkbnvyc\\n2021/06/19-01:35:17 : ccymckbipr\\n2023/10/10-02:32:23 : lvfxerxksckmsbctyjmzjovkdhoqlkqsngvkzg\\n2027da/06/18-21:35:34 : glhrly\\n2027/12/28-23:54:00 : glahyskqprdjsdadjvjxuvzvsxmm\\n2034/07/04-02:12:06 : tyvuzubhw\\n2036/01/25-15:02:08 : tytttpzyplzwfxwhjeqfrbfwrseepsjbkyyuce\\n2045/07/21-23:31:31 : dvqdrozllatdkqft\\n20dsad52/08/06-22:34:29 : kahsmvbhjrqtsivcy\\n2062/11/02-04:46:55 : ozrpkoochkgkawkggrcdf\\n2064/12/12-07:18:31 : lmisrmmswjmoovnoqisqinknuyo\\n2070/04/24-21:04:15 : mfkenostccdfapsqjlksny\\n2082/03/10-02:25:07 : hyci\\n2094/03/18-11:16:31 : bimfyz\\n2096/08/08-13:27:30 : hmvthlqlgbwrusxdbusju","timeused":0}');
 
-            
             var stdContent = null, yourContent = null;
             var addLinenum = function(str, your) {
               var prefix = ((your) ? 'Your ' : ' Std ');
               if (str == 'missing\n') return '*********|(Missing)\n';
               else if (str.length == 0) return "*********|(No output)\n";
-              var length = str.length, ret = '', endWithNewLine = false, moreData = false;
+              var length = str.length, ret = '', backup = '', oneLine = '', endWithNewLine = false, moreData = false;
               if (str.match(/ more data\.\.\.$/)) str = str.substring(0, str.length - 14), moreData = true;
               else if (str.match(/ more data$/)) str = str.substring(0, str.length - 10), moreData = true;
               if (!moreData && str[length - 1] == '\n') endWithNewLine = true;
               str = str.split('\n');
-              for (i in str) ret += sprintf(prefix + '%03d |', parseInt(i) + 1) + str[i] + '\n';
+              for (i in str) oneLine = str[i] + '\n', ret += (sprintf(prefix + '%03d |', parseInt(i) + 1) + oneLine), backup += oneLine;
               if (!endWithNewLine) {
                 ret += prefix + '    |';
-                if (moreData) ret += ' more data...\n';
-                else ret += noNewLine + '\n';
-              } else if (moreData) ret += ' more data...\n';
+                if (moreData) oneLine = ' more data...\n', ret += oneLine, backup += oneLine;
+                else oneLine = noNewLine + '\n', ret += oneLine, backup += oneLine;
+              } else if (moreData) oneLine = ' more data...\n', ret += oneLine, backup += oneLine;
               if (typeof(your) == 'boolean') {
-                if (your) yourContent = ret.split('\n');
-                else stdContent = ret.split('\n');
+                if (your) yourContent = backup;
+                else stdContent = backup;
               }
               return ret;
             };
             var difference = function() {
               var ret = '';
-              if (!stdContent || !yourContent) return ret;
-              if (stdContent.length == yourContent.length) {
-                for (i in stdContent) {
-                  var std = stdContent[i], your = yourContent[i];
-                  if (std.substr(10) != your.substr(10)) {
-                    if (i == stdContent.length - 2) {
-                        if (~std.indexOf(noNewLine)) {
-                        your += hasNewLine;
-                      } else if (~your.indexOf(noNewLine)) {
-                        std += hasNewLine;
-                      }
-                    }
-                    ret += std + '\n' + your + '\n         |\n';
-                  }
-                }
-              } else {
-                var small = (stdContent.length < yourContent.length) ? stdContent : yourContent;
-                for (i in small) {
-                  var std = stdContent[i], your = yourContent[i];
-                  var wrapLine = function(str, mark) {
-                    if (str.length == 0) return mark + ' ****|(End of output)';
-                    else return str; 
-                  };
-                  if (std.substr(10) != your.substr(10)) {
-                    ret += '*********|(difference appears from here...)\n         |\n';
-                    ret += wrapLine(std, ' Std') + '\n' + wrapLine(your, 'Your') + '\n';
-                    break;
+              var result = jsDiff.diffLines(stdContent, yourContent), linenum = 0;
+              for (i in result) {
+                var part = result[i], value = part.value.slice(0, -1).split('\n'), resultLength = result.length;
+                if (!part.added && !part.removed) {
+                  if (i != 0) ret += '\n';
+                  for (j in value) ret += sprintf('  Yr %03d |', ++linenum) + value[j] + '\n';
+                  if (i != resultLength) ret += '\n';
+                } else {
+                  var formerIsCommonData = (!result[parseInt(i) - 1] || (!result[parseInt(i) - 1].added && !result[parseInt(i) - 1].removed));
+                  var latterIsCommonData = (!result[parseInt(i) + 1] || (!result[parseInt(i) + 1].added && !result[parseInt(i) + 1].removed));
+                  if (formerIsCommonData && latterIsCommonData) {
+                    for (j in value) ret += ((part.added) ? 'Your add |' : ' Std add |') + value[parseInt(j)] + '\n';
+                  } else {
+                    for (j in value) ret += ((part.added) ? (++linenum, 'Your has |') : ' Std has |') + value[j] + '\n';
                   }
                 }
               }
@@ -288,6 +277,11 @@ function fetchLatestSubmissionOutput(problemId, foldername, getAc, callback) {
       var polishMemoryTests = function(info) {
         for (i in info) {
           var test = info[i];
+          if (test.error) {
+            content += '\n============ Memory Test #' + (parseInt(i) + 1) + ' ===============\n';
+            content += 'Error: ' + test.error + '\n';
+            continue;
+          }
           var stdin = test.stdin, errors = test.valgrindoutput.error;
           if (!errors) {
             content += 'pass\n';
@@ -361,8 +355,8 @@ function fetchLatestSubmissionOutput(problemId, foldername, getAc, callback) {
           return;
         }
       };
-      var phases = [{'name': 'compile check',
-                    'func': polishCompileMsg},
+      var phases = [{name: 'compile check',
+                     func: polishCompileMsg},
                     {'name': 'static check',
                     'func': polishStaticCheckMsg},
                     {'name': 'standard tests',
@@ -372,17 +366,17 @@ function fetchLatestSubmissionOutput(problemId, foldername, getAc, callback) {
                     {'name': 'memory check',
                     'func': polishMemoryTests}];
       for (i in phases) polishPhase(phases[i].name, phases[i].func);
-      createFile(savePath + '/' + foldername + '/' + 'Latest Submission Outputs/Submission Output ' + ((getAc) ? '(including CR samples) ' : '') + suffixTime + '.txt', content, function(err) {
+                // false: not to overwrite
+      createFile(false, savePath + '/' + foldername + '/' + 'Latest Submission Outputs/Submission Output ' + ((getAc) ? '(including CR samples) ' : '') + suffixTime + submissionOutputExtension, content, function(err) {
         if (callback) return callback(err);
         else return;
       });
     });
   });
-  
 }
 
 
-function downloadStandardAnswerBinaries(Id, savePath, callback) {
+// function downloadStandardAnswerBinaries(Id, savePath, callback) {
   // if (!globalDownloadBinaries) return callback(null);
   // var subfolder = 'Standard Answer Binaries/', filename = 'a.out';
   // var error = null;
@@ -414,7 +408,7 @@ function downloadStandardAnswerBinaries(Id, savePath, callback) {
   //         });
   //     });
   // });
-}
+// }
 
 function FetchOne(problemId, tobeDone, getAc, callback) {
   request.get(matrixRootUrl + '/get-problem-by-id?problemId=' + problemId, function(e, r, body) {
@@ -440,33 +434,12 @@ function FetchOne(problemId, tobeDone, getAc, callback) {
     var title = data.title, c11 = false;
     if (config.compilers['c++']) c11 = Boolean(~config.compilers['c++'].command.indexOf('-std=c++11'));
     var author = data.author, memoryLimit = config.limits.memory + 'MB', timeLimit = config.limits.time + 'ms';
-    // console.log(c11, "s\n", config, "s\n", supportFiles, "s\n", author, memoryLimit, timeLimit);
     var error = null;
-    // if (tobeDone) console.log(((chinese) ? "正在获取未完成的 Assignment" : "Fetching unfinished assignment"), problemId, "....");
-    // else console.log(((chinese) ? "正在获取 Assignment" : "Fetching assignment"), problemId, "....");
     fetchLatestSubmissionOutput(problemId, problemId + ' ' + title, getAc, function(err) {
       if (err) error = err;
       informFetchResult(error, problemId);
       if (callback) return callback();
     });
-    
-//         // it would be better to encapsulate this section as an exception
-//       if (blockTag.length == 0) {
-//         if (chinese) {
-//           console.log("\n错误：页面上没有代码文件 (出错的id为" + problemId + ")");
-//           console.log("  *** 建议您亲自登录Eden查看该作业是否真实存在、正在改分、或者被判抄袭。");
-//           if (~$('#main font').text().indexOf('plagiarism')) console.log('  *** 提示：您的这次作业似乎被判了抄袭。');
-//           console.log('  ... 下载 Assignment ' + Id + ' 时出错。');
-//         } else {
-//           console.log("\nError: No code files exist. (the assignment id is " + Id + ")");
-//           console.log("  *** It is suggested that you check out whether the assignment actually exists, \
-// is being graded, or is in plagiarism pending.");
-//           if (~$('#main font').text().indexOf('plagiarism')) console.log('  *** Hint: Your assignment seems to be in plagiarism pending.');
-//           console.log('  ... There occurred some problems when Assignment ' + Id + ' are being downloaded.');
-//         }
-//         return;
-//       }
-
   });
 }
 
@@ -573,7 +546,7 @@ new username and password patterns are allowed to stored.');
     for (var i = 0; i < this.total; ++i) {
       if (username == this.data.users[i].username) return i;
     }
-      // not found: return a new index which makes it convenient to create new accounts
+      // not found: return a new index which makes it convenient to create a account
     return this.total;
   };
   UsersDataManager.prototype.addAccount = function(username, password) {
@@ -590,7 +563,6 @@ new username and password patterns are allowed to stored.');
   UsersDataManager.prototype.removeAccountByUsername = function(username, callback) {
     this.data.users[this.findAccountByUsername(username)]
       = this.data.users[this.total - 1];
-    // this.data.users[this.total - 1] = {"username": "", "password": ""};
     this.data.users.pop();
     --(this.total);
     this.writeDataTo(usersdataFilename, function(err) {
@@ -639,7 +611,7 @@ function getAssignmentsId() {
     before: function(id) {return id.split(' ');}
   }], function(err, result) {
     if (err) throw err;
-    var fetched = false, getAcOutput = false;  // flag for unfinished problems
+    var fetched = false, getAcOutput = false, extensionSet = false;  // flag for unfinished problems
     var rawId = result.id, countValidId = 0;
     var idArray = new Array();
       // simply press Enter => fetch unfinished problems
@@ -648,7 +620,9 @@ function getAssignmentsId() {
     // }
     for (i in rawId) {
       var oneId = rawId[i];
-      if (!fetched && oneId.match(/^u$/)) {
+      if (!extensionSet && oneId.match(/^\!\..{1,}\!$/)) {
+        extensionSet = true, submissionOutputExtension = oneId.slice(1, -1);
+      } else if (!fetched && oneId.match(/^u$/)) {
 
       } else if (oneId.match(/^[Aa]$/)) {
         getAcOutput = true;
