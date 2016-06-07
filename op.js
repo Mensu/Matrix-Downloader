@@ -1,7 +1,7 @@
 var windows32 = false;
 var windows = false;
 var ByEncloseJS = false;
-var chinese = false;
+var chinese = true;
 
 var sanitize = require('sanitize-filename');
 var request = require('request');
@@ -14,26 +14,28 @@ var getDirName = path.dirname;
 var fs = require('fs');
 var crypto = require('crypto');
 var sprintf = require('sprintf-js').sprintf;
-var jsDiff = require('diff');
+var diff = require('diff');
 
 var matrixRootUrl = 'https://eden.sysu.edu.cn';
 var usersdataFilename = '.usersdata';
 var submissionOutputExtension = '.txt';
 var username = '', userId = '', usersDataManager = null, savePath = './saved';
 
+var cancelMemoryCheck = false;
+
 function getMD5(data) { return crypto.createHash('md5').update(data).digest('hex'); }
 
 function writeFile(path, contents, callback) {
   mkdirp(getDirName(path), function(err) {
     if (err) {
-      console.log('\nError:', err.code, err.message);
+      console.log('\nError:', err.message);
       if (callback) return callback(err);
       else throw err;
     }
     if (windows) contents = contents.replace(/\n/g, '\r\n');
     fs.writeFile(path, contents, function(err) {
       if (err) {
-        console.log('\nError:', err.code, err.message);
+        console.log('\nError:', err.message);
         if (callback) return callback(err);
         else throw err;
       }
@@ -116,11 +118,13 @@ function downloadFile(url, dest, callback) {
   });
 };
 
-function fetchLatestSubmissionOutput(problemId, foldername, getAc, callback) {
+function fetchLatestSubmissionOutput(problemId, foldername, getAc, overwrite, callback) {
   var suffixTime = '';
   request.get(matrixRootUrl + '/get-one-assignment-info?position=0&problemId=' + problemId + '&status=2&userId=' + userId, function(e, r, body) {
     var prefixWithZero = function(date) {
-      return date.replace(/(\/)(?=(\d)(\D))/g, '-0').replace(/( )(?=(\d)(\D))/g, ' 0').replace(/(:)(?=(\d)(\D))/g, ':0');
+      date = date.replace(/(\/)(?=(\d)(\D))/g, '-0').replace(/( )(?=(\d)(\D))/g, ' 0').replace(/((\:)(?=(\d)(\D)))|((\:)(?=(\d)$))/g, ':0');
+      if (windows) return date.replace(/\:/g, '-');
+      else return date;
     };
     var parseErr = null;
     try {
@@ -136,6 +140,8 @@ function fetchLatestSubmissionOutput(problemId, foldername, getAc, callback) {
       suffixTime = prefixWithZero('at ' + latest.submitAt);
     }
     request.get(matrixRootUrl + '/get-last-submission-report?problemId=' + problemId + '&userId=' + userId, function(e, r, body) {
+    // request.get('https://eden.sysu.edu.cn/get-submission-by-id?submissionId=' + '2890', function(e, r, body) {  
+      
       var parseErr = null;
       try {
         body = JSON.parse(body);
@@ -149,7 +155,9 @@ function fetchLatestSubmissionOutput(problemId, foldername, getAc, callback) {
         else throw err;
       }
       var data = body.data[0], content = '';
+      // var data = body.data, content = '';
       var existanceError = new Error('No useful output detected. You may want to check out the Problem (id = ' + problemId + ') by yourself.');
+      
       if (!data) {
         console.log('\nError:', existanceError.message);
         if (callback) return callback(existanceError);
@@ -164,15 +172,15 @@ function fetchLatestSubmissionOutput(problemId, foldername, getAc, callback) {
         content += '\nError: ' + report.error + '\n';
       }
       content += '\nYour Grade: ' + grade + '\n';
-      var wrap = function(str, append) { return ((typeof(str) != 'undefined') ? (str + ((typeof(append) != 'undefined') ? append : '')) : 'missing\n'); };
+      var wrap = function(str, append) { return ((typeof(str) != 'undefined') ? (str + ((typeof(append) != 'undefined') ? append : '')) : '(missing)\n'); };
       var wrapBorder = function(str, borderSpaceNum) {
         var border = ' '.repeat(borderSpaceNum) + '+-----------------------------------\n';
         return border + str + border;
       };
-      var noNewLine = '(No \\n at the end)', hasNewLine = '(Has \\n at the end)';
+      var noNewLine = '(No \\n at the end)';
       var wrapStdin = function(str) {
         if (str.length == 0) return "(No input)\n";
-        else if (str[str.length - 2] != '\n') str += (noNewLine + '\n');
+        else if (str[str.length - 2] != '\n' && str != '(missing)\n') return str += (noNewLine + '\n');
         else return str;
       };
       var polishTests = function(tests, std) {
@@ -185,7 +193,7 @@ function fetchLatestSubmissionOutput(problemId, foldername, getAc, callback) {
             var stdContent = null, yourContent = null;
             var addLinenum = function(str, your) {
               var prefix = ((your) ? 'Your ' : ' Std ');
-              if (str == 'missing\n') return '*********|(Missing)\n';
+              if (str == '(missing)\n') return '*********|(Missing)\n';
               else if (str.length == 0) return "*********|(No output)\n";
               var length = str.length, ret = '', backup = '', oneLine = '', endWithNewLine = false, moreData = false;
               if (str.match(/ more data\.\.\.$/)) str = str.substring(0, str.length - 14), moreData = true;
@@ -206,18 +214,18 @@ function fetchLatestSubmissionOutput(problemId, foldername, getAc, callback) {
             };
             var difference = function() {
               var ret = '';
-              var result = jsDiff.diffLines(stdContent, yourContent), linenum = 0;
+              var result = diff.diffLines(stdContent, yourContent), linenum = 0;
               for (i in result) {
                 var part = result[i], value = part.value.slice(0, -1).split('\n'), resultLength = result.length;
                 if (!part.added && !part.removed) {
                   if (i != 0) ret += '\n';
                   for (j in value) ret += sprintf('  Yr %03d |', ++linenum) + value[j] + '\n';
-                  if (i != resultLength) ret += '\n';
+                  if (i != resultLength - 1) ret += '\n';
                 } else {
                   var formerIsCommonData = (!result[parseInt(i) - 1] || (!result[parseInt(i) - 1].added && !result[parseInt(i) - 1].removed));
                   var latterIsCommonData = (!result[parseInt(i) + 1] || (!result[parseInt(i) + 1].added && !result[parseInt(i) + 1].removed));
                   if (formerIsCommonData && latterIsCommonData) {
-                    for (j in value) ret += ((part.added) ? 'Your add |' : ' Std add |') + value[parseInt(j)] + '\n';
+                    for (j in value) ret += ((part.added) ? (++linenum, 'Your add |') : ' Std add |') + value[parseInt(j)] + '\n';
                   } else {
                     for (j in value) ret += ((part.added) ? (++linenum, 'Your has |') : ' Std has |') + value[j] + '\n';
                   }
@@ -243,18 +251,27 @@ function fetchLatestSubmissionOutput(problemId, foldername, getAc, callback) {
             } else {
               content += '          Standard answer:\n' + wrapBorder(addLinenum(wrap(standard_stdout), false), 9) + '\n';
               content += '          Your answer:\n' + wrapBorder(addLinenum(wrap(stdout), true), 9) + '\n';
-              var diff = difference();
-              if (diff) content += '          Difference:\n' + wrapBorder(diff, 9);
+              
+              var diffResult = difference();
+              if (diffResult) content += '          Difference:\n' + wrapBorder(diffResult, 9);
             }
           }
           if (!ac && !wrongNum) content += 'pass\n';
         };
+        if (tests[0] && tests[0].message == "Malicious code detected! This unusual behavior will be recorded  by the system") {
+          content += '\nError: ' + tests[0].message + '\n';
+          return;
+        }
         polish(false);
         if (getAc) polish(true);
       };
       var toContinue = true;
       var polishCompileMsg = function(info) { content += info + '\n'; };
       var polishStaticCheckMsg = function(info) {
+        if (info == "static parse error") {
+          content += '\nError: ' + info + '\n';
+          return;
+        }
         var violation = info.violation;
         if (violation.length == 0) content += 'pass\n';
         for (i in violation) {
@@ -266,7 +283,7 @@ function fetchLatestSubmissionOutput(problemId, foldername, getAc, callback) {
           content += '\n============ Violation #' + (parseInt(i) + 1) + ' ===============\n';
           content += '  File: ' + oneViolation.path.substr(5) + '\n';
           content += '  Line: ' + range(oneViolation.startLine, oneViolation.endLine) + '\n';
-          content += 'Column: ' + range(oneViolation.startColumn, oneViolation.endColumn) + '\n';
+          content += 'Column: ' + oneViolation.startColumn + ' ~ ' + oneViolation.endColumn + '\n';
           content += '  Rule: ' + oneViolation.rule + '\n';
           content += (oneViolation.message) ? 'Detail: ' + oneViolation.message + '\n' : '';
           content += '\n';
@@ -275,6 +292,7 @@ function fetchLatestSubmissionOutput(problemId, foldername, getAc, callback) {
       var polishStandardTests = function(info) { polishTests(info, true); };
       var polishRandomTests = function(info) { polishTests(info, false); };
       var polishMemoryTests = function(info) {
+        var pass = true;
         for (i in info) {
           var test = info[i];
           if (test.error) {
@@ -283,23 +301,27 @@ function fetchLatestSubmissionOutput(problemId, foldername, getAc, callback) {
             continue;
           }
           var stdin = test.stdin, errors = test.valgrindoutput.error;
-          if (!errors) {
-            content += 'pass\n';
-            break;
-          }
-          content += '\n============ Memory Test #' + (parseInt(i) + 1) + ' ===============\n';
+          if (!errors) continue;
+          else pass = false;
+          content += '\n=================== Memory Test #' + (parseInt(i) + 1) + ' =====================\n';
           content += '\n Test input:\n' + wrapBorder(wrapStdin(wrap(stdin, '\n'), 0)) + '\n';
+          if (typeof(errors.length) == 'undefined') errors = new Array(errors);
           for (j in errors) {
             var oneError = errors[j], behavior = oneError.what;
-            
-            content += '------------ Error #' + (parseInt(j) + 1) + ' -----------\n';
-            content += 'Behavior: ' + wrap(behavior) + '\n';
-            if (!behavior) continue;
+            content += '------------- Error #' + (parseInt(j) + 1) + ' -----------\n';
             var auxwhat = oneError.auxwhat, stack = oneError.stack;
+            if (!behavior) {
+              if (oneError.kind == 'Leak_DefinitelyLost') {
+                behavior = 'Memory leak';
+              } else {
+                content += 'Behavior: ' + wrap(behavior) + '\n';
+                content += '\n' + oneError + '\n';
+                continue;
+              }
+            }
+            content += 'Behavior: ' + wrap(behavior) + '\n';
             if (behavior == 'Invalid free() / delete / delete[] / realloc()'
-              || ~behavior.indexOf('Invalid read of size')
-              || ~behavior.indexOf('Invalid write of size')
-              || behavior == 'Conditional jump or move depends on uninitialised value(s)') {
+              || ~behavior.indexOf('Invalid write of size')) {
               for (k in stack) {
                 var frame = stack[k].frame;
                 if (k == 0) content += '  ';
@@ -311,21 +333,34 @@ function fetchLatestSubmissionOutput(problemId, foldername, getAc, callback) {
                   if (funcInfo.file && funcInfo.line) content += ' ' + funcInfo.file + ' Line ' + funcInfo.line + '\n  ';
                   content += '  ' + funcInfo.fn + '\n  ';
                 }
-                content += '\n';
               }
-            } else if (~behavior.indexOf('are definitely lost in loss record')) {
+            } else if (~behavior.indexOf('Use of uninitialised value of size')
+                      || ~behavior.indexOf('Invalid read of size')
+                      || behavior == 'Conditional jump or move depends on uninitialised value(s)') {
               for (k in stack) {
                 var frame = stack[k].frame;
                 if (k == 0) content += '  ';
-                else content += auxwhat[0] + ':\n  ';
+                else content += auxwhat + ':\n  ';
+                if (typeof(frame.length) == 'undefined') frame = new Array(frame);
                 for (l in frame) {
                   var funcInfo = frame[l];
                   if (l != 0) content += 'by:';
                   else content += 'at:';
+                  if (typeof(((funcInfo.fn) ? funcInfo.fn : funcInfo.obj)) == 'undefined') console.log(funcInfo);
                   if (funcInfo.file && funcInfo.line) content += ' ' + funcInfo.file + ' Line ' + funcInfo.line + '\n  ';
-                  content += '  ' + funcInfo.fn + '\n  ';
+                  content += '  ' + ((funcInfo.fn) ? funcInfo.fn : 'some func precompiled in ' + funcInfo.obj) + '\n  ';
                 }
-                content += '\n';
+              }
+            } else if (behavior == "Memory leak") {
+              auxwhat = oneError.xwhat;
+              var frame = stack.frame;
+              content += ' ' + auxwhat.text + '\n  ';
+              for (l in frame) {
+                var funcInfo = frame[l];
+                if (l != 0) content += 'by:';
+                else content += 'at:';
+                if (funcInfo.file && funcInfo.line) content += ' ' + funcInfo.file + ' Line ' + funcInfo.line + '\n  ';
+                content += '  ' + funcInfo.fn + '\n  ';
               }
             } else {
               for (k in auxwhat) content += auxwhat[k] + '\n';
@@ -339,24 +374,26 @@ function fetchLatestSubmissionOutput(problemId, foldername, getAc, callback) {
                   if (funcInfo.file && funcInfo.line) content += ' ' + funcInfo.file + ' Line ' + funcInfo.line + '\n  ';
                   content += '  ' + funcInfo.fn + '\n  ';
                 }
-                content += '\n';
               }
             }
             content += '\n';
           }
+          
         }
+        if (pass) content += 'pass\n';
       };
       var polishPhase = function(phase, func) {
         if (toContinue && report[phase] && report[phase][phase]) {
           toContinue = report[phase]['continue'];
           content += '\n>>>>>>>>>>>>>>>>>> [' + phase + '] <<<<<<<<<<<<<<<<<<<<<<<\nGrade: ' + report[phase]['grade'] + '\n';
+          if (phase == 'memory check' && cancelMemoryCheck) return content += 'Canceled.\n';
           return func(report[phase][phase]);
         } else {
           return;
         }
       };
-      var phases = [{name: 'compile check',
-                     func: polishCompileMsg},
+      var phases = [{'name': 'compile check',
+                     'func': polishCompileMsg},
                     {'name': 'static check',
                     'func': polishStaticCheckMsg},
                     {'name': 'standard tests',
@@ -367,7 +404,7 @@ function fetchLatestSubmissionOutput(problemId, foldername, getAc, callback) {
                     'func': polishMemoryTests}];
       for (i in phases) polishPhase(phases[i].name, phases[i].func);
                 // false: not to overwrite
-      createFile(false, savePath + '/' + foldername + '/' + 'Latest Submission Outputs/Submission Output ' + ((getAc) ? '(including CR samples) ' : '') + suffixTime + submissionOutputExtension, content, function(err) {
+      createFile(overwrite, savePath + '/' + foldername + '/' + 'Latest Submission Outputs/' + problemId + ' Output ' + ((getAc) ? '(including CR) ' : '') + suffixTime + submissionOutputExtension, content, function(err) {
         if (callback) return callback(err);
         else return;
       });
@@ -410,7 +447,7 @@ function fetchLatestSubmissionOutput(problemId, foldername, getAc, callback) {
   // });
 // }
 
-function FetchOne(problemId, tobeDone, getAc, callback) {
+function FetchOne(problemId, tobeDone, getAc, overwrite, callback) {
   request.get(matrixRootUrl + '/get-problem-by-id?problemId=' + problemId, function(e, r, body) {
     if (e) {
       console.log('\nError:', e.code, e.message);
@@ -435,7 +472,7 @@ function FetchOne(problemId, tobeDone, getAc, callback) {
     if (config.compilers['c++']) c11 = Boolean(~config.compilers['c++'].command.indexOf('-std=c++11'));
     var author = data.author, memoryLimit = config.limits.memory + 'MB', timeLimit = config.limits.time + 'ms';
     var error = null;
-    fetchLatestSubmissionOutput(problemId, problemId + ' ' + title, getAc, function(err) {
+    fetchLatestSubmissionOutput(problemId, problemId + ' ' + title, getAc, overwrite, function(err) {
       if (err) error = err;
       informFetchResult(error, problemId);
       if (callback) return callback();
@@ -490,14 +527,14 @@ function informFetchResult(error, Id) {
 
 function UsersDataManager(filename, callback) {
     // this => *this && public
-  this.data = {"users": []};
+  this.data = null;
   this.total = 0;
   var self = this;
   UsersDataManager.prototype.readDataFrom = function(filename, callback) {
     fs.stat(filename, function(err, stat) {
       if (err) {
           // create an empty usersDataManager object
-        self.data = {"users": []};
+        self.data = {'users': [], 'config': {'submissionOutputExtension': '.txt'}};
         self.total = self.data.users.length;
         if (callback) callback(null);
       } else {
@@ -511,7 +548,8 @@ function UsersDataManager(filename, callback) {
             try {  
               self.data = JSON.parse(rawData);
               self.total = 0;
-              for (i in self.data.users) 
+              submissionOutputExtension = self.data.config.submissionOutputExtension.substr(0);
+              for (i in self.data.users)
                 if (self.data.users[i].username.length && self.data.users[i].password.length) ++self.total;
             } catch (e) {
               console.log('\nError:', e.code + ": " + e.message);
@@ -521,8 +559,9 @@ function UsersDataManager(filename, callback) {
 been modified and could not be recognized any more. \
 The orginal ' + filename + ' file will get overwritten when \
 new username and password patterns are allowed to stored.');
-              self.data = {"users": []};
+              self.data = {'users': [], 'config': {'submissionOutputExtension': '.txt'}};
               self.total = self.data.users.length;
+              submissionOutputExtension = self.data.config.submissionOutputExtension.substr(0);
               if (callback) return callback(null);
               else throw e;
             }
@@ -533,8 +572,9 @@ new username and password patterns are allowed to stored.');
     });
   };
   UsersDataManager.prototype.writeDataTo = function(filename, callback) {
-    fs.writeFile('./' + filename, JSON.stringify(this.data), function() {
-      if (callback) callback(null);
+    writeFile('./' + filename, JSON.stringify(this.data), function(err) {
+      if (callback) callback(err);
+      else throw err;
     });
   };
   UsersDataManager.prototype.listUsernames = function() {
@@ -567,8 +607,8 @@ new username and password patterns are allowed to stored.');
     --(this.total);
     this.writeDataTo(usersdataFilename, function(err) {
       if (err) {
-        if (chinese) console.log('\nError:', err.code, err.message, '\n保存失败\n');
-        else console.log('\nError:', err.code, err.message, '\nFailed to store\n');
+        if (chinese) console.log('\n保存失败\n');
+        else console.log('\nFailed to store\n');
         if (callback) return callback();
       }
       if (callback) return callback();
@@ -583,27 +623,33 @@ new username and password patterns are allowed to stored.');
 function getAssignmentsId() {
   prompt.start();
   if (chinese) {
-    console.log("请输入 Problem id");
+    console.log("请输入 Problem Id");
     // console.log('或者[敲下回车]下载未完成的 Problem');
-    console.log('  *** 注意：id应该是一个数字，像 588');
-    console.log('  *** 允许一次输入多个id，像 586 587 588，用空格将id隔开');
+    console.log('  *** 注意：id 应该是一个数字，像 588');
+    console.log('  *** 允许一次输入多个 id，像 586 587 588，用空格将 id 隔开');
     console.log('  *** 默认情况下，不获取正确(CR)的样例');
-    console.log('  *** 想获取正确的样例，您可以输入一个 "a" 作为 id');
-    console.log('  *** 这样，正确的样例会在 "a" 后面那些 Problem 的输出中显示');
-    console.log('  *** 您还可以通过在 id 后面加一个 "a" 来指定要看哪些 Problem 的正确样例');
-    console.log('  *** 像 586 587a 588 a 5 6 7');
+    console.log('  *** 想获取正确的样例，您可以输入一个 "c" 或 "C" 作为 id');
+    console.log('  *** 这样，正确的样例会在 "c" 后面那些 Problem 的输出中显示');
+    console.log('  *** 也可以通过在 id 后面加一个 "c" 来指定要看哪些 Problem 的正确样例');
+    console.log('  *** 像 586 587c 588 c 5 6 7');
     console.log('         => 586(不要CR) 587(要CR) 588(不要CR) 5(要CR) 6(要CR) 7(要CR)');
+    console.log('  *** 同理，输入 "w" 或 "W" 可以覆盖本地已储存的输出（默认不覆盖）');
+    console.log('  *** 您还可以输入 "!.js!"、"!.md!" 等作为[第一个 id ]来修改输出文件的后缀名');
+    console.log('\n  **** 内存检查的部分很可能导致程序编译出错，此时您可先输入 "m" 作为 id 取消该部分输出 ****');
   } else {
-    console.log("Please input Problem Id");
+    console.log("Please input the Problem Id");
     // console.log('or [simply press Enter] to fetch unfinished Problems');
     console.log('  *** Note: a valid Problem Id is a number like 588');
     console.log('  *** Multiple ids are allowed like 586 587 588, with ids separated by spaces');
     console.log('  *** By default correct samples (CR) are not displayed');
-    console.log('  *** To check out correct samples, you may input an "a" as an id');
-    console.log('  *** and correct samples will be displayed in the output of Problems after the "a"');
-    console.log('  *** You may also append an "a" after an id the correct samples of which you would like to check out,');
-    console.log('  *** like 586 587a 588 a 5 6 7');
+    console.log('  *** To check out correct samples, you may input an "c" or "C" as an id');
+    console.log('  *** and correct samples will be displayed in the output of Problems after the "c"');
+    console.log('  *** You may also append an "c" after an id the correct samples of which you would like to check out,');
+    console.log('  *** like 586 587c 588 c 5 6 7');
     console.log('         => 586(No CR) 587(CR) 588(No CR) 5(CR) 6(CR) 7(CR)');
+    console.log('  *** Likewise, appending a "w" or "W" after an id would lead to overwriting the local file, which is not default');
+    console.log('  *** You may input "!.js!" or "!.md!" or ... as [the first id] to change the file extestion of output');
+    console.log('\n  **** The part of Memory Check is prone to result in syntax error when the program is running. In this case it is suggested that you input an "m" as an id to skips this part. ****');
   }
   prompt.get([{
     name: 'id',
@@ -611,7 +657,7 @@ function getAssignmentsId() {
     before: function(id) {return id.split(' ');}
   }], function(err, result) {
     if (err) throw err;
-    var fetched = false, getAcOutput = false, extensionSet = false;  // flag for unfinished problems
+    var fetched = false, getAcOutputAfter = false, overwriteAfter = false, extensionSet = false;  // flag for unfinished problems
     var rawId = result.id, countValidId = 0;
     var idArray = new Array();
       // simply press Enter => fetch unfinished problems
@@ -622,14 +668,19 @@ function getAssignmentsId() {
       var oneId = rawId[i];
       if (!extensionSet && oneId.match(/^\!\..{1,}\!$/)) {
         extensionSet = true, submissionOutputExtension = oneId.slice(1, -1);
-      } else if (!fetched && oneId.match(/^u$/)) {
-
-      } else if (oneId.match(/^[Aa]$/)) {
-        getAcOutput = true;
-      } else if (oneId.match(/^((\d){1,})([Aa]{0,1})$/)) {
+      // } else if (!fetched && oneId.match(/^u$/)) {
+      } else if (oneId.match(/^[Mm]$/)) {
+        cancelMemoryCheck = true;
+      } else if (oneId.match(/^[Cc]$/)) {
+        getAcOutputAfter = true;
+      } else if (oneId.match(/^[Ww]$/)) {
+        overwriteAfter = true;
+      } else if (oneId.match(/^((\d){1,})[CcWw]{0,5}$/) && !oneId.match(/([CcWw])(?=.*\1)/)) {
         ++countValidId;
-        if (oneId.match(/[Aa]$/)) FetchOne(oneId.substring(0, oneId.length - 1), false, true);
-        else FetchOne(oneId, false, getAcOutput);
+        var getAc = false, overwrite = false;
+        if (~oneId.indexOf('c') || ~oneId.indexOf('C')) getAc = true;
+        if (~oneId.indexOf('w') || ~oneId.indexOf('W')) overwrite = true;
+        FetchOne(oneId.replace(/[CcWw]/g, ''), false, getAcOutputAfter || getAc, overwriteAfter || overwrite);
       } else if (oneId != '') {  // else => ignore
         if (chinese) console.log('忽略非法id "' + oneId + '"');
         else console.log('invalid id "' + oneId + '" ignored');
@@ -696,8 +747,8 @@ function loginMatrix(fromData, loginUsername, password) {
           usersDataManager.addAccount(username, password);
           usersDataManager.writeDataTo(usersdataFilename, function(err) {
             if (err) {
-              if (chinese) console.log('\nError:', err.code, err.message, '\n保存失败\n');
-              else console.log('\nError:', err.code, err.message, '\nFailed to store\n');
+              if (chinese) console.log('\n保存失败\n');
+              else console.log('\nFailed to store\n');
               return getAssignmentsId();
             }
             if (chinese) console.log('... 保存成功\n');

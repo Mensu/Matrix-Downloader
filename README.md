@@ -1,39 +1,74 @@
 #### Please feel free to fork the repository, open new issues as well as make pull requests. Thanks in advance for all your participation!
 
+![comparison demo](http://7xrahq.com1.z0.glb.clouddn.com/matrix-output-polisher-demo-comparison.png)
+
 # Thanks To
 - [``ieb``](https://github.com/iebb/Maban) whose [Madan](https://github.com/iebb/Maban) inspired this repository.
+
+# New
+- better comparison between **standard answer output** and **your output**
+- support memory check (beta)
+- more options
+
 
 # Main Features
 Make submission output generated on Matrix more convenient to read and utilize!
 
 - better readability
 - output with line numbers
-- simple comparison between standard answer output and your output
+- comparison between **standard answer output** and **your output**
 
-Supported Phase:
+Supported Phases
 
 - Compile Check
 - Static Check
 - Standard Tests
 - Random Tests
+- Memory Check (beta)
 
-Memory Check is not supported for the moment.
+#### Options
+
+Options may be used as or appended after an id.  
+Both ``577 588c 599c`` and ``577 c 588 599`` work.
+
+- ``c`` to get CR samples
+- ``w`` to overwrite the local output file
+- ``!.js!`` to set the file extension of output file to .js
+- ``m`` to cancel Memory Check part
+
+###### example
+
+``577 588c 591 598cw 589 w 488 m 666``
+
+- 577: default (No CR samples, No overwriting, Memory Check)
+- 588: get CR samples
+- 591: default
+- 598: get CR samples, overwrite local output file
+- 589: default
+- 488: overwrite local output file
+- 666: overwrite local output file, skip Memory Check
+
+# Demo
+
+![static check](http://7xrahq.com1.z0.glb.clouddn.com/matrix-output-polisher-demo-static-check.png)
+![memory check](http://7xrahq.com1.z0.glb.clouddn.com/matrix-output-polisher-demo-memory-check-1.png)
+![memory check](http://7xrahq.com1.z0.glb.clouddn.com/matrix-output-polisher-demo-memory-check-2.png)
 
 # Precompiled Binaries
 
 There are some precompiled binaries ( by using ``enclose`` )
 
-[``Windows-32bit``](https://github.com/Mensu/matrix-output-polisher/releases/download/v0.2-alpha/MatrixOutputPolisher-Win32.exe)
-``12.6 MB``
+[``Windows-32bit``](https://github.com/Mensu/matrix-output-polisher/releases/download/v0.3-alpha/MatrixOutputPolisher-Win32.exe)
+``12.8 MB``
 
-[``Windows-64bit``](https://github.com/Mensu/matrix-output-polisher/releases/download/v0.2-alpha/MatrixOutputPolisher-Win64.exe)
-``15.9 MB``
+[``Windows-64bit``](https://github.com/Mensu/matrix-output-polisher/releases/download/v0.3-alpha/MatrixOutputPolisher-Win64.exe)
+``16.1 MB``
 
-[``Mac-64bit``](https://github.com/Mensu/matrix-output-polisher/releases/download/v0.2-alpha/MatrixOutputPolisher-Mac64)
-``29.5 MB``
+[``Mac-64bit``](https://github.com/Mensu/matrix-output-polisher/releases/download/v0.3-alpha/MatrixOutputPolisher-Mac64)
+``20.4 MB``
 
-[``Ubuntu-64bit``](https://github.com/Mensu/matrix-output-polisher/releases/download/v0.2-alpha/MatrixOutputPolisher-Ubuntu64)
-``22.0 MB``
+[``Ubuntu-64bit``](https://github.com/Mensu/matrix-output-polisher/releases/download/v0.3-alpha/MatrixOutputPolisher-Ubuntu64)
+``22.2 MB``
 
 You only need to execute it
 
