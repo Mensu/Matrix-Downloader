@@ -7,7 +7,7 @@
 
 # New
 - better comparison between **standard answer output** and **your output**
-- support memory check (beta)
+- support memory check part (beta)
 - more options
 
 
