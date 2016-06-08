@@ -1,12 +1,8 @@
-var windows32 = false;
 var windows = false;
-var ByEncloseJS = false;
 var chinese = true;
 
 var sanitize = require('sanitize-filename');
 var request = require('request');
-var j = request.jar();
-var request = request.defaults({ jar: j });
 var mkdirp = require('mkdirp');
 var prompt = require('prompt');
 var path = require('path');
@@ -120,12 +116,29 @@ function downloadFile(url, dest, callback) {
 
 function fetchLatestSubmissionOutput(problemId, foldername, getAc, overwrite, callback) {
   var suffixTime = '';
+
+  // get submission time
   request.get(matrixRootUrl + '/get-one-assignment-info?position=0&problemId=' + problemId + '&status=2&userId=' + userId, function(e, r, body) {
+  
+  /* for debug */
+  // request.get(matrixRootUrl + '/get-one-assignment-info?position=0&problemId=' + '3' + '&status=2&userId=' + userId, function(e, r, body) {
+  /* end */
+
+    /** prefix one-digit number with a 0
+      * @param date <string> "XXXX/YY/Y Y:YY:Y" representing submit time
+	    * @return <string> "XXXX-YY-0Y 0Y:YY:0Y" for linux or "XXXX-YY-0Y 0Y-YY-0Y" for win
+      * 
+      * private but independent
+      */
     var prefixWithZero = function(date) {
       date = date.replace(/(\/)(?=(\d)(\D))/g, '-0').replace(/( )(?=(\d)(\D))/g, ' 0').replace(/((\:)(?=(\d)(\D)))|((\:)(?=(\d)$))/g, ':0');
       if (windows) return date.replace(/\:/g, '-');
       else return date;
     };
+
+    /** if we fail to get submission time
+      *   => use local time instead
+      */
     var parseErr = null;
     try {
       body = JSON.parse(body);
@@ -139,31 +152,98 @@ function fetchLatestSubmissionOutput(problemId, foldername, getAc, overwrite, ca
       var latest = body.data[0];
       suffixTime = prefixWithZero('at ' + latest.submitAt);
     }
+
+    // get report json
     request.get(matrixRootUrl + '/get-last-submission-report?problemId=' + problemId + '&userId=' + userId, function(e, r, body) {
-    // request.get('https://eden.sysu.edu.cn/get-submission-by-id?submissionId=' + '2890', function(e, r, body) {  
-      
+    
+    /* for debug */
+    // request.get('https://eden.sysu.edu.cn/get-submission-by-id?submissionId=' + problemId, function(e, r, body) {  
+    /* end */
+
+      /** if connection failed
+        *  => skip current problemId
+        */
+      if (e) {
+        console.log('\nError:', e.message, 'problemId = ', problemId);
+        if (callback) return callback(e);
+        else throw e;
+      }
+
+      /** if parsing fails
+        *   => skip current problemId
+        */
       var parseErr = null;
       try {
         body = JSON.parse(body);
       } catch (e) {
         parseErr = e;
       }
-      if (e || parseErr || body.err) {
-        var err = (e) ? e : ((parseErr) ? parseErr : body.err);
-        console.log('\nError:', err.code, err.msg);
+      if (parseErr || body.err) {
+        var bodyErr = null;
+        if (body && body.err) bodyErr = new Error(body.msg);
+        var err = (parseErr) ? parseErr : bodyErr;
+        console.log('\nError:', err.message);
         if (callback) return callback(err);
         else throw err;
       }
+      parseErr = null;
+
+      /** data: {grade, report}
+        * content: the final result to be written into file
+        */
       var data = body.data[0], content = '';
+
+      /* for debug */
       // var data = body.data, content = '';
-      var existanceError = new Error('No useful output detected. You may want to check out the Problem (id = ' + problemId + ') by yourself.');
-      
+      /* end */
+
+      var existanceError = new Error('No useful output detected. You might want to check out the Problem (id = ' + problemId + ') by yourself.');
+
+      /** if data is empty
+        *   => impossible to get any information
+        *   => skip current problemId
+        */
       if (!data) {
         console.log('\nError:', existanceError.message);
         if (callback) return callback(existanceError);
         else return;
       }
-      var grade = data.grade, report = JSON.parse(data.report);
+
+      /** grade: total scores
+        * report: consists of the five phases
+        */
+      var grade = data.grade, report = null;
+
+      /** if parsing fails
+        *   => attempt to complete it
+        *     if it fails again
+        *       => impossible to get any info from it
+        *       => skip current problemId
+        */
+      try {
+        report = JSON.parse(data.report);
+      } catch (e) {
+        try {
+          report = JSON.parse(data.report + ' more data..."}]}}');
+        } catch (e) {
+          parseErr = e;
+        }
+      }
+      if (parseErr) {
+        var err = parseErr;
+        console.log('\nError:', err.message, problemId);
+        if (callback) return callback(err);
+        else throw err;
+      }
+      parseErr = null;
+
+      /** if report is empty (typically null)
+        *   => impossible to get any information
+        *   => skip current problemId
+        * 
+        * else if report contains error
+        *   => write it into file
+        */
       if (!report) {
         console.log('\nError:', existanceError.message);
         if (callback) return callback(existanceError);
@@ -171,36 +251,112 @@ function fetchLatestSubmissionOutput(problemId, foldername, getAc, overwrite, ca
       } else if (report.error) {
         content += '\nError: ' + report.error + '\n';
       }
+
       content += '\nYour Grade: ' + grade + '\n';
-      var wrap = function(str, append) { return ((typeof(str) != 'undefined') ? (str + ((typeof(append) != 'undefined') ? append : '')) : '(missing)\n'); };
+      var noNewLine = '(No \\n at the end)';
+
+      /** @param str <string/undefined> the string to be wrapped
+        * @param append <string/undefined> append itself, if defined, after str
+        * @return <string>
+        * 
+        * private but independent
+        */
+      var wrap = function(str, append) {
+        return ((typeof(str) != 'undefined') ? (str + ((typeof(append) != 'undefined') ? append : '')) : '(missing)\n');
+      };
+      
+      /** @param str <string> the string to be wrapped with borders
+        * @param borderSpaceNum <number> the number of spaces before borders
+        * @return <string>
+        * 
+        * private but independent
+        */
       var wrapBorder = function(str, borderSpaceNum) {
         var border = ' '.repeat(borderSpaceNum) + '+-----------------------------------\n';
         return border + str + border;
       };
-      var noNewLine = '(No \\n at the end)';
+
+      /** @param str <string> the stdin to be wrapped
+        * @return <string> 
+        * 
+        * private, dependent on noNewLine
+        */
       var wrapStdin = function(str) {
         if (str.length == 0) return "(No input)\n";
         else if (str[str.length - 2] != '\n' && str != '(missing)\n') return str += (noNewLine + '\n');
         else return str;
       };
+
+
+      /** @param tests <[{standard_output, stdin, stdout, ...}]> array of tests
+        * @param std <boolean> true => standard test
+        *                     false => random tests
+        * @return <undefined>
+        * 
+        * private, dependent on 
+        */
       var polishTests = function(tests, std) {
-        var prefix = (std) ? 'Standard' : 'Random';
+        var prefixTitle = (std) ? 'Standard' : 'Random';
+
+        /** @param ac <boolean> true => to get CR samples
+          * @return <undefined>
+          * 
+          * private, dependent on 
+          */
         var polish = function(ac) {
+          // number of nonpass tests
           var wrongNum = 0;
           for (i in tests) {
+            /* for debug */
             // tests[0] = JSON.parse('{"memoryused":6044,"result":"WA","standard_stdout":"2000/06/10-23:30:32 : smyfeobsiwcyjd\\n2006/05/18-23:44:38 : iqfmacdidhxavuttvunaewlngzkzrcswyslobffp\\n2010/05/01-17:00:03 : goyzcfacjvybbusdxttzbqrzbz\\n2018/09/13-05:42:02 : newxqoeeeigqm\\n2018/10/08-16:55:36 : erffudcvxsyfkbnvyc\\n2021/06/19-01:35:17 : ccymckbipr\\n2023/10/10-02:32:23 : lvfxerxksckmsbctyjmzjovkdhoqlkqngvkzg\\n2027/06/18-21:35:34 : glhrly\\n2027/12/28-23:54:00 : glahyskqprdjjvjxuvzvsxmm\\n2034/07/04-02:12:06 : tyvuzubhw\\n2036/01/2sad5-15:02:08 : tytttpzyplzwfxwhjeqfrbfwrseepsjbkyyuce\\n2045/07/21-23:31:31 : dvqdrozllatdkqft\\n2052/08/06-22:34:29 : kahsmvbhjrqtsivcy\\n2062/11/02-04:46:55 : ozrpkoochkgkawkggrcdf\\n2064/12/12-07:18:31 : lmisrmmswjmoovnoqisqinknuyo\\n2070/04/24-21:04:15 : mfkenostccdfapsqjlksny\\n2082/03/10-02:25:07 : hyci\\n2094/03/18-11:16:31 : bimfyz\\n2096/08/08-13:27:30 : hmvthlqlgbwrusxdbusju\\n","stdin":"19\\n2027/06/18-21:35:34|glhrly\\n2023/10/10-02:32:23|lvfxerxksckmsbctyjmzjovkdhoqlkqngvkzg\\n2094/03/18-11:16:31|bimfyz\\n2010/05/01-17:00:03|goyzcfacjvybbusdxttzbqrzbz\\n2018/09/13-05:42:02|newxqoeeeigqm\\n2070/04/24-21:04:15|mfkenostccdfapsqjlksny\\n2062/11/02-04:46:55|ozrpkoochkgkawkggrcdf\\n2096/08/08-13:27:30|hmvthlqlgbwrusxdbusju\\n2045/07/21-23:31:31|dvqdrozllatdkqft\\n2006/05/18-23:44:38|iqfmacdidhxavuttvunaewlngzkzrcswyslobffp\\n2034/07/04-02:12:06|tyvuzubhw\\n2064/12/12-07:18:31|lmisrmmswjmoovnoqisqinknuyo\\n2018/10/08-16:55:36|erffudcvxsyfkbnvyc\\n2000/06/10-23:30:32|smyfeobsiwcyjd\\n2052/08/06-22:34:29|kahsmvbhjrqtsivcy\\n2021/06/19-01:35:17|ccymckbipr\\n2036/01/25-15:02:08|tytttpzyplzwfxwhjeqfrbfwrseepsjbkyyuce\\n2027/12/sda28-23:54:00|glahyskqprdjjvjxuvzvsxmm\\n2082/03/10-02:25:07|hyci\\n","stdout":"2000/06/10-23:30:32 : smyfeobsiwcyjd\\n2006/05/18-23:44:38 : iqfmacdidhxavuttvunaewlngzkzrcswyslobffp\\n2010/05/01-17:00:03 : goyzcfacjvybbusdxttzbqrzbz\\n2018/09/13-05:42:02 : newxqoeeeigqm\\n2018/10/08-16:55:36 : erffudcvxsyfkbnvyc\\n2021/06/19-01:35:17 : ccymckbipr\\n2023/10/10-02:32:23 : lvfxerxksckmsbctyjmzjovkdhoqlkqsngvkzg\\n2027da/06/18-21:35:34 : glhrly\\n2027/12/28-23:54:00 : glahyskqprdjsdadjvjxuvzvsxmm\\n2034/07/04-02:12:06 : tyvuzubhw\\n2036/01/25-15:02:08 : tytttpzyplzwfxwhjeqfrbfwrseepsjbkyyuce\\n2045/07/21-23:31:31 : dvqdrozllatdkqft\\n20dsad52/08/06-22:34:29 : kahsmvbhjrqtsivcy\\n2062/11/02-04:46:55 : ozrpkoochkgkawkggrcdf\\n2064/12/12-07:18:31 : lmisrmmswjmoovnoqisqinknuyo\\n2070/04/24-21:04:15 : mfkenostccdfapsqjlksny\\n2082/03/10-02:25:07 : hyci\\n2094/03/18-11:16:31 : bimfyz\\n2096/08/08-13:27:30 : hmvthlqlgbwrusxdbusju","timeused":0}');
+            /* end */
 
+            // contents to be compared
             var stdContent = null, yourContent = null;
+
+            /** @param str <string> string of lines to be prefixed with line numbers
+              * @param your <bool/undefined> true => your output
+              *                              false => standard output
+              * @return <string> result
+              * 
+              * private, dependent on 
+              */
             var addLinenum = function(str, your) {
+              // a mark prefixed before lines
               var prefix = ((your) ? 'Your ' : ' Std ');
+
+              // special cases
               if (str == '(missing)\n') return '*********|(Missing)\n';
               else if (str.length == 0) return "*********|(No output)\n";
-              var length = str.length, ret = '', backup = '', oneLine = '', endWithNewLine = false, moreData = false;
-              if (str.match(/ more data\.\.\.$/)) str = str.substring(0, str.length - 14), moreData = true;
-              else if (str.match(/ more data$/)) str = str.substring(0, str.length - 10), moreData = true;
+
+              /** length: the length of str
+                * ret: text with lines added line numbers
+                * backup: for stdContent and yourContent
+                * oneLine: the line of the main content
+                */
+              var length = str.length, ret = '', backup = '', oneLine = '';
+              var endWithNewLine = false, moreData = false;
+              
+              // set flags
+              if (str.match(/ more data\.\.\.$/)) str = str.slice(0, -14), moreData = true;
+              else if (str.match(/ more data$/)) str = str.slice(0, -10), moreData = true;
               if (!moreData && str[length - 1] == '\n') endWithNewLine = true;
+              
               str = str.split('\n');
-              for (i in str) oneLine = str[i] + '\n', ret += (sprintf(prefix + '%03d |', parseInt(i) + 1) + oneLine), backup += oneLine;
+              for (i in str) {
+
+                /** if the line ends with a space
+                  *   => append a hint after the line
+                  */
+                var endWithSpace = false, endSpace = '(<- has a space at the end)';
+                if (str[i][str[i].length - 1] == ' ') endWithSpace = true;
+
+                oneLine = str[i] + (endWithSpace ? endSpace : '') + '\n';
+
+                ret += (sprintf(prefix + '%03d |', parseInt(i) + 1) + oneLine), backup += oneLine;
+              }
+
+
               if (!endWithNewLine) {
                 ret += prefix + '    |';
                 if (moreData) oneLine = ' more data...\n', ret += oneLine, backup += oneLine;
@@ -242,7 +398,8 @@ function fetchLatestSubmissionOutput(problemId, foldername, getAc, overwrite, ca
             }
             var memory = test.memoryused, time = test.timeused;
             var stdin = test.stdin, standard_stdout = test.standard_stdout, stdout = test.stdout;
-            content += '\n============ ' + prefix + ' Test #' + (parseInt(i) + 1) + ' ===============\n';
+            
+            content += '\n============ ' + prefixTitle + ' Test #' + (parseInt(i) + 1) + ' ===============\n';
             content += 'Result code: ' + wrap(resultCode) + '\n';
             content += 'Memory used: ' + wrap(memory, 'KB') + '  Time used: ' + wrap(time, 'ms') + '\n\n';
             content += ' Test input:\n' + wrapBorder(wrapStdin(wrap(stdin, '\n'), 0)) + '\n';
@@ -251,7 +408,7 @@ function fetchLatestSubmissionOutput(problemId, foldername, getAc, overwrite, ca
             } else {
               content += '          Standard answer:\n' + wrapBorder(addLinenum(wrap(standard_stdout), false), 9) + '\n';
               content += '          Your answer:\n' + wrapBorder(addLinenum(wrap(stdout), true), 9) + '\n';
-              
+              if (!stdContent || !yourContent) continue;
               var diffResult = difference();
               if (diffResult) content += '          Difference:\n' + wrapBorder(diffResult, 9);
             }
@@ -291,96 +448,84 @@ function fetchLatestSubmissionOutput(problemId, foldername, getAc, overwrite, ca
       };
       var polishStandardTests = function(info) { polishTests(info, true); };
       var polishRandomTests = function(info) { polishTests(info, false); };
+      var hasMemory = false;
       var polishMemoryTests = function(info) {
         var pass = true;
+
         for (i in info) {
-          var test = info[i];
-          if (test.error) {
+          var test = info[i], stdin = test.stdin;
+          hasMemory = true;
+          if (test.error || test.message) {
+            var msg = (test.error) ? test.error : test.message;
             content += '\n============ Memory Test #' + (parseInt(i) + 1) + ' ===============\n';
-            content += 'Error: ' + test.error + '\n';
+            content += 'Error: ' + msg + '\n';
+            if (test.stdin) content += '\n Test input:\n' + wrapBorder(wrapStdin(wrap(test.stdin, '\n'), 0)) + '\n';
+            pass = false;
             continue;
           }
-          var stdin = test.stdin, errors = test.valgrindoutput.error;
+          var errors = test.valgrindoutput.error;
+          // if (typeof(errors) == 'undefined') continue;
+          // errors = errors.error;
           if (!errors) continue;
           else pass = false;
+
           content += '\n=================== Memory Test #' + (parseInt(i) + 1) + ' =====================\n';
           content += '\n Test input:\n' + wrapBorder(wrapStdin(wrap(stdin, '\n'), 0)) + '\n';
           if (typeof(errors.length) == 'undefined') errors = new Array(errors);
           for (j in errors) {
             var oneError = errors[j], behavior = oneError.what;
+
             content += '------------- Error #' + (parseInt(j) + 1) + ' -----------\n';
+
             var auxwhat = oneError.auxwhat, stack = oneError.stack;
+            
             if (!behavior) {
               if (oneError.kind == 'Leak_DefinitelyLost') {
                 behavior = 'Memory leak';
+                auxwhat = oneError.xwhat.text;
+              } else if (oneError.kind == 'Leak_PossiblyLost') {
+                behavior = 'Possible memory leak';
+                auxwhat = oneError.xwhat.text;
               } else {
                 content += 'Behavior: ' + wrap(behavior) + '\n';
                 content += '\n' + oneError + '\n';
                 continue;
               }
             }
+
+            if (typeof(auxwhat) == 'string') auxwhat = new Array(auxwhat);
             content += 'Behavior: ' + wrap(behavior) + '\n';
-            if (behavior == 'Invalid free() / delete / delete[] / realloc()'
-              || ~behavior.indexOf('Invalid write of size')) {
-              for (k in stack) {
-                var frame = stack[k].frame;
-                if (k == 0) content += '  ';
-                else content += ((k == 1) ? '' : ' ') + auxwhat[k - 1] + ':\n  ';
-                for (l in frame) {
-                  var funcInfo = frame[l];
-                  if (l != 0) content += 'by:';
-                  else content += 'at:';
-                  if (funcInfo.file && funcInfo.line) content += ' ' + funcInfo.file + ' Line ' + funcInfo.line + '\n  ';
-                  content += '  ' + funcInfo.fn + '\n  ';
-                }
-              }
-            } else if (~behavior.indexOf('Use of uninitialised value of size')
-                      || ~behavior.indexOf('Invalid read of size')
-                      || behavior == 'Conditional jump or move depends on uninitialised value(s)') {
-              for (k in stack) {
-                var frame = stack[k].frame;
-                if (k == 0) content += '  ';
-                else content += auxwhat + ':\n  ';
-                if (typeof(frame.length) == 'undefined') frame = new Array(frame);
-                for (l in frame) {
-                  var funcInfo = frame[l];
-                  if (l != 0) content += 'by:';
-                  else content += 'at:';
-                  if (typeof(((funcInfo.fn) ? funcInfo.fn : funcInfo.obj)) == 'undefined') console.log(funcInfo);
-                  if (funcInfo.file && funcInfo.line) content += ' ' + funcInfo.file + ' Line ' + funcInfo.line + '\n  ';
-                  content += '  ' + ((funcInfo.fn) ? funcInfo.fn : 'some func precompiled in ' + funcInfo.obj) + '\n  ';
-                }
-              }
-            } else if (behavior == "Memory leak") {
-              auxwhat = oneError.xwhat;
-              var frame = stack.frame;
-              content += ' ' + auxwhat.text + '\n  ';
+            if (typeof(stack.length) == 'undefined') stack = new Array(stack);
+
+
+            // if ( ~behavior.indexOf('ismatch')
+            //   || ~behavior.indexOf('Invalid read of size')
+            //   || ~behavior.indexOf('Invalid write of size')
+            //   || ~behavior.indexOf('leak')
+            //   || ~behavior.indexOf('Use of uninitialised value of size')
+            //   || behavior == 'Invalid free() / delete / delete[] / realloc()'
+            //   || behavior == 'Conditional jump or move depends on uninitialised value(s)') {
+            for (k in stack) {
+              var frame = stack[k].frame;
+              if (typeof(frame.length) == 'undefined') frame = new Array(frame);
+              if (k == 0) content += '  ';
+              else content += ' ' + auxwhat[k - 1] + ':\n  ';
               for (l in frame) {
                 var funcInfo = frame[l];
                 if (l != 0) content += 'by:';
                 else content += 'at:';
-                if (funcInfo.file && funcInfo.line) content += ' ' + funcInfo.file + ' Line ' + funcInfo.line + '\n  ';
-                content += '  ' + funcInfo.fn + '\n  ';
+                // if (funcInfo.file && funcInfo.line) content += ' ' + funcInfo.file + ' Line ' + funcInfo.line + '\n  ';
+                // content += '  ' + funcInfo.fn + '\n  ';
+                if (funcInfo.file && funcInfo.line) content += ' ' + funcInfo.file + ' Line ' + funcInfo.line + '\n  ' + '  ' + funcInfo.fn + '\n  ';
+                else content += ' ' + (funcInfo.fn ? funcInfo.fn : 'some func') + ' precompiled in ' + funcInfo.obj + '\n  ';
               }
-            } else {
-              for (k in auxwhat) content += auxwhat[k] + '\n';
-              for (k in stack) {
-                var frame = stack[k].frame;
-                content += '  ';
-                for (l in frame) {
-                  var funcInfo = frame[l];
-                  if (l != 0) content += 'by:';
-                  else content += 'at:';
-                  if (funcInfo.file && funcInfo.line) content += ' ' + funcInfo.file + ' Line ' + funcInfo.line + '\n  ';
-                  content += '  ' + funcInfo.fn + '\n  ';
-                }
-              }
+              content += '\n';
             }
             content += '\n';
           }
           
         }
-        if (pass) content += 'pass\n';
+        if (pass) content += 'pass\n', hasMemory = false;
       };
       var polishPhase = function(phase, func) {
         if (toContinue && report[phase] && report[phase][phase]) {
@@ -404,6 +549,7 @@ function fetchLatestSubmissionOutput(problemId, foldername, getAc, overwrite, ca
                     'func': polishMemoryTests}];
       for (i in phases) polishPhase(phases[i].name, phases[i].func);
                 // false: not to overwrite
+      // if (hasMemory)
       createFile(overwrite, savePath + '/' + foldername + '/' + 'Latest Submission Outputs/' + problemId + ' Output ' + ((getAc) ? '(including CR) ' : '') + suffixTime + submissionOutputExtension, content, function(err) {
         if (callback) return callback(err);
         else return;
@@ -463,8 +609,10 @@ function FetchOne(problemId, tobeDone, getAc, overwrite, callback) {
       parseErr = e;
     }
     if (parseErr || body.err) {
-      var err = (parseErr) ? parseErr : body.err;
-      console.log('\nError:', err.code, err.msg);
+      var bodyErr = null;
+      if (body.err) new Error(body.msg);
+      var err = (parseErr) ? parseErr : bodyErr;
+      console.log('\nError:', err.message);
       return informFetchResult(err, problemId);
     }
     var data = body.data, config = JSON.parse(data.config), supportFiles = data.supportFiles;
@@ -472,7 +620,12 @@ function FetchOne(problemId, tobeDone, getAc, overwrite, callback) {
     if (config.compilers['c++']) c11 = Boolean(~config.compilers['c++'].command.indexOf('-std=c++11'));
     var author = data.author, memoryLimit = config.limits.memory + 'MB', timeLimit = config.limits.time + 'ms';
     var error = null;
+    // // for (var id = 1; id != 1000; ++id)
+    // var id = [944, 941, 953];
+    // for (i in id)
+                              // here
     fetchLatestSubmissionOutput(problemId, problemId + ' ' + title, getAc, overwrite, function(err) {
+      var error = null;
       if (err) error = err;
       informFetchResult(error, problemId);
       if (callback) return callback();

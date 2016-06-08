@@ -28,8 +28,9 @@ Supported Phases
 
 #### Options
 
-Options may be used as or appended after an id.  
-Both ``577 588c 599c`` and ``577 c 588 599`` work.
+When you are to input Problem Ids, options may be used as or appended after an id.
+
+That means, both ``577 588c 599c`` and ``577 c 588 599`` work.
 
 - ``c`` to get CR samples
 - ``w`` to overwrite the local output file
@@ -38,9 +39,9 @@ Both ``577 588c 599c`` and ``577 c 588 599`` work.
 
 ###### example
 
-``577 588c 591 598cw 589 w 488 m 666``
+``prompt:  id: 577 588c 591 598cw 589 w 488 m 666``
 
-- 577: default (No CR samples, No overwriting, Memory Check)
+- 577: default (No CR samples, No overwriting, get Memory Check)
 - 588: get CR samples
 - 591: default
 - 598: get CR samples, overwrite local output file
@@ -49,10 +50,18 @@ Both ``577 588c 599c`` and ``577 c 588 599`` work.
 - 666: overwrite local output file, skip Memory Check
 
 # Demo
+- compile check
+![compile check](http://7xrahq.com1.z0.glb.clouddn.com/matrix-output-polisher-demo-compilation-falied.png)
 
+- static check
 ![static check](http://7xrahq.com1.z0.glb.clouddn.com/matrix-output-polisher-demo-static-check.png)
-![memory check](http://7xrahq.com1.z0.glb.clouddn.com/matrix-output-polisher-demo-memory-check-1.png)
-![memory check](http://7xrahq.com1.z0.glb.clouddn.com/matrix-output-polisher-demo-memory-check-2.png)
+
+- standard/random tests
+![tests](http://7xrahq.com1.z0.glb.clouddn.com/matrix-output-polisher-demo-comparison2.png)
+
+- memory check
+![memory leak](http://7xrahq.com1.z0.glb.clouddn.com/matrix-output-polisher-demo-memory-leak.png)
+![invalid read](http://7xrahq.com1.z0.glb.clouddn.com/matrix-output-polisher-demo-invalid-read.png)
 
 # Precompiled Binaries
 
@@ -61,13 +70,13 @@ There are some precompiled binaries ( by using ``enclose`` )
 [``Windows-32bit``](https://github.com/Mensu/matrix-output-polisher/releases/download/v0.3-alpha/MatrixOutputPolisher-Win32.exe)
 ``12.8 MB``
 
-[``Windows-64bit``](https://github.com/Mensu/matrix-output-polisher/releases/download/v0.3-alpha/MatrixOutputPolisher-Win64.exe)
+[``Windows-64bit``](https://github.com/Mensu/matrix-output-polisher/releases/download/v0.3.1-alpha/MatrixOutputPolisher-Win64.exe)
 ``16.1 MB``
 
-[``Mac-64bit``](https://github.com/Mensu/matrix-output-polisher/releases/download/v0.3-alpha/MatrixOutputPolisher-Mac64)
+[``Mac-64bit``](https://github.com/Mensu/matrix-output-polisher/releases/download/v0.3.1-alpha/MatrixOutputPolisher-Mac64)
 ``20.4 MB``
 
-[``Ubuntu-64bit``](https://github.com/Mensu/matrix-output-polisher/releases/download/v0.3-alpha/MatrixOutputPolisher-Ubuntu64)
+[``Ubuntu-64bit``](https://github.com/Mensu/matrix-output-polisher/releases/download/v0.3.1-alpha/MatrixOutputPolisher-Ubuntu64)
 ``22.2 MB``
 
 You only need to execute it
