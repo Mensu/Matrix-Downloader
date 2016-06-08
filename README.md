@@ -50,16 +50,16 @@ That means, both ``577 588c 599c`` and ``577 c 588 599`` work.
 - 666: overwrite local output file, skip Memory Check
 
 # Demo
-- compile check
+- compile check  
 ![compile check](http://7xrahq.com1.z0.glb.clouddn.com/matrix-output-polisher-demo-compilation-falied.png)
 
-- static check
+- static check  
 ![static check](http://7xrahq.com1.z0.glb.clouddn.com/matrix-output-polisher-demo-static-check.png)
 
-- standard/random tests
+- standard/random tests  
 ![tests](http://7xrahq.com1.z0.glb.clouddn.com/matrix-output-polisher-demo-comparison2.png)
 
-- memory check
+- memory check  
 ![memory leak](http://7xrahq.com1.z0.glb.clouddn.com/matrix-output-polisher-demo-memory-leak.png)
 ![invalid read](http://7xrahq.com1.z0.glb.clouddn.com/matrix-output-polisher-demo-invalid-read.png)
 
