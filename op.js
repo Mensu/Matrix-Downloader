@@ -1,5 +1,5 @@
 var windows = false;
-var chinese = true;
+var chinese = false;
 
 var sanitize = require('sanitize-filename');
 var request = require('request');
@@ -126,7 +126,8 @@ function fetchLatestSubmissionOutput(problemId, foldername, getAc, overwrite, ca
 
     /** prefix one-digit number with a 0
       * @param date <string> "XXXX/YY/Y Y:YY:Y" representing submit time
-	    * @return <string> "XXXX-YY-0Y 0Y:YY:0Y" for linux or "XXXX-YY-0Y 0Y-YY-0Y" for win
+      * @return <string> "XXXX-YY-0Y 0Y:YY:0Y" for linux
+      *               or "XXXX-YY-0Y 0Y-YY-0Y" for win
       * 
       * private but independent
       */
@@ -147,7 +148,7 @@ function fetchLatestSubmissionOutput(problemId, foldername, getAc, overwrite, ca
     }
     if (e || parseErr || body.err || !body.data.length) {
       var date = new Date();
-      suffixTime = prefixWithZero('downloaded at ' + date.getFullYear() + '/' + (parseInt(date.getMonth()) + 1) + '/' + date.getDay() + ' ' + date.getHours() + ':' + date.getMinutes() + ':' + date.getSeconds());
+      suffixTime = prefixWithZero('downloaded at ' + date.getFullYear() + '/' + (parseInt(date.getMonth()) + 1) + '/' + date.getDate() + ' ' + date.getHours() + ':' + date.getMinutes() + ':' + date.getSeconds());
     } else {
       var latest = body.data[0];
       suffixTime = prefixWithZero('at ' + latest.submitAt);
@@ -197,15 +198,15 @@ function fetchLatestSubmissionOutput(problemId, foldername, getAc, overwrite, ca
       // var data = body.data, content = '';
       /* end */
 
-      var existanceError = new Error('No useful output detected. You might want to check out the Problem (id = ' + problemId + ') by yourself.');
+      var existenceError = new Error('No useful output detected. You might want to check out the Problem (id = ' + problemId + ') by yourself.');
 
       /** if data is empty
         *   => impossible to get any information
         *   => skip current problemId
         */
       if (!data) {
-        console.log('\nError:', existanceError.message);
-        if (callback) return callback(existanceError);
+        console.log('\nError:', existenceError.message);
+        if (callback) return callback(existenceError);
         else return;
       }
 
@@ -245,8 +246,8 @@ function fetchLatestSubmissionOutput(problemId, foldername, getAc, overwrite, ca
         *   => write it into file
         */
       if (!report) {
-        console.log('\nError:', existanceError.message);
-        if (callback) return callback(existanceError);
+        console.log('\nError:', existenceError.message);
+        if (callback) return callback(existenceError);
         else return;
       } else if (report.error) {
         content += '\nError: ' + report.error + '\n';
@@ -293,7 +294,7 @@ function fetchLatestSubmissionOutput(problemId, foldername, getAc, overwrite, ca
         *                     false => random tests
         * @return <undefined>
         * 
-        * private, dependent on 
+        * private, dependent on ..
         */
       var polishTests = function(tests, std) {
         var prefixTitle = (std) ? 'Standard' : 'Random';
@@ -301,7 +302,7 @@ function fetchLatestSubmissionOutput(problemId, foldername, getAc, overwrite, ca
         /** @param ac <boolean> true => to get CR samples
           * @return <undefined>
           * 
-          * private, dependent on 
+          * private, dependent on ..
           */
         var polish = function(ac) {
           // number of nonpass tests
@@ -319,7 +320,7 @@ function fetchLatestSubmissionOutput(problemId, foldername, getAc, overwrite, ca
               *                              false => standard output
               * @return <string> result
               * 
-              * private, dependent on 
+              * private, dependent on ..
               */
             var addLinenum = function(str, your) {
               // a mark prefixed before lines
@@ -731,8 +732,10 @@ new username and password patterns are allowed to stored.');
     });
   };
   UsersDataManager.prototype.listUsernames = function() {
+    var maxIndexLength = String(this.total).length;
+    var format = '%0' + maxIndexLength + 'd';
     for (var i = 0; i < this.total; ++i) {
-      console.log('[' + (parseInt(i) + parseInt(1)) + ']', this.data.users[i].username);
+      console.log('[' + sprintf(format, (parseInt(i) + parseInt(1))) + ']', this.data.users[i].username);
     }
   };
   UsersDataManager.prototype.findAccountByUsername = function(username) {
