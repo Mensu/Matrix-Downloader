@@ -62,10 +62,10 @@ function informConnectionFailed(err, problemId) {
   else hint = '  *** Lack of access to internet' + insertProblemId + ' or TA Ye Jiaqi being updating codes may cause this error. ';
   if (!problemId) console.log('');
   if (chinese) {
-    console.log('连接错误: 无法连接到 Matrix，请稍后再试:(');
+    if (!problemId) console.log('连接错误: 无法连接到 Matrix，请稍后再试:(');
     console.log(hint);
   } else {
-    console.log('ConnectionError: Failed to connect to Matrix, please try again later:(');
+    if (!problemId) console.log('ConnectionError: Failed to connect to Matrix, please try again later:(');
     console.log(hint);
   }
   if (err) throw err;
@@ -113,6 +113,18 @@ function downloadFile(url, dest, callback) {
     });
   });
 };
+
+function informParseErr(parseErr, phase) {
+  console.log('\nError:', parseErr.message);
+  if (chinese) console.log('解析错误：服务器返回的数据不完整，无法正确解析', ('(' + ((phase) ? phase : '') + ' phasing error)'));
+  else console.log('Parsing Error: fail to parse data due to data loss', ('(' + ((phase) ? phase : '') + ' phasing error)'));
+}
+
+function informBodyErr(bodyErr) {
+  console.log('\nError:', bodyErr.message);
+  if (chinese) console.log('内部错误：未能获取批改结果。');
+  else console.log('Internal Error: fail to fetch the grading report.');
+}
 
 function fetchLatestSubmissionOutput(problemId, foldername, getAc, overwrite, callback) {
   var suffixTime = '';
@@ -179,14 +191,16 @@ function fetchLatestSubmissionOutput(problemId, foldername, getAc, overwrite, ca
       } catch (e) {
         parseErr = e;
       }
-      if (parseErr || body.err) {
-        var bodyErr = null;
-        if (body && body.err) bodyErr = new Error(body.msg);
+      if (parseErr || (body && body.err)) {
+        var bodyErr = (body && body.err) ? new Error(body.msg) : null;
         var err = (parseErr) ? parseErr : bodyErr;
-        console.log('\nError:', err.message);
+        if (parseErr) informParseErr(err, 'report body');
+        else if (bodyErr) informBodyErr(err);
         if (callback) return callback(err);
         else throw err;
       }
+      
+      
       parseErr = null;
 
       /** data: {grade, report}
@@ -198,7 +212,7 @@ function fetchLatestSubmissionOutput(problemId, foldername, getAc, overwrite, ca
       // var data = body.data, content = '';
       /* end */
 
-      var existenceError = new Error('No useful output detected. You might want to check out the Problem (id = ' + problemId + ') by yourself.');
+      var existenceError = new Error('No useful output detected.\n  *** You might want to check out the Problem (id = ' + problemId + ') by yourself.');
 
       /** if data is empty
         *   => impossible to get any information
@@ -231,11 +245,11 @@ function fetchLatestSubmissionOutput(problemId, foldername, getAc, overwrite, ca
         }
       }
       if (parseErr) {
-        var err = parseErr;
-        console.log('\nError:', err.message, problemId);
-        if (callback) return callback(err);
-        else throw err;
+        informParseErr(parseErr, 'report content');
+        if (callback) return callback(parseErr);
+        else throw parseErr;
       }
+      
       parseErr = null;
 
       /** if report is empty (typically null)
@@ -609,11 +623,11 @@ function FetchOne(problemId, tobeDone, getAc, overwrite, callback) {
     } catch (e) {
       parseErr = e;
     }
-    if (parseErr || body.err) {
-      var bodyErr = null;
-      if (body.err) new Error(body.msg);
+    if (parseErr || (body && body.err)) {
+      var bodyErr = (body && body.err) ? new Error(body.msg) : null;
       var err = (parseErr) ? parseErr : bodyErr;
-      console.log('\nError:', err.message);
+      if (parseErr) informParseErr(err, 'problem info');
+      else if (bodyErr) informBodyErr(err);
       return informFetchResult(err, problemId);
     }
     var data = body.data, config = JSON.parse(data.config), supportFiles = data.supportFiles;
@@ -791,7 +805,7 @@ function getAssignmentsId() {
     console.log('         => 586(不要CR) 587(要CR) 588(不要CR) 5(要CR) 6(要CR) 7(要CR)');
     console.log('  *** 同理，输入 "w" 或 "W" 可以覆盖本地已储存的输出（默认不覆盖）');
     console.log('  *** 您还可以输入 "!.js!"、"!.md!" 等作为[第一个 id ]来修改输出文件的后缀名');
-    console.log('\n  **** 内存检查的部分很可能导致程序编译出错，此时您可先输入 "m" 作为 id 取消该部分输出 ****');
+    console.log('\n  **** 内存检查的部分有可能导致程序编译出错，万一出错了，您可先输入 "m" 作为 id 取消该部分输出 ****');
   } else {
     console.log("Please input the Problem Id");
     // console.log('or [simply press Enter] to fetch unfinished Problems');
@@ -805,7 +819,7 @@ function getAssignmentsId() {
     console.log('         => 586(No CR) 587(CR) 588(No CR) 5(CR) 6(CR) 7(CR)');
     console.log('  *** Likewise, appending a "w" or "W" after an id would lead to overwriting the local file, which is not default');
     console.log('  *** You may input "!.js!" or "!.md!" or ... as [the first id] to change the file extestion of output');
-    console.log('\n  **** The part of Memory Check is prone to result in syntax error when the program is running. In this case it is suggested that you input an "m" as an id to skips this part. ****');
+    console.log('\n  **** The part of Memory Check is likely to result in syntax error when the program is running. Should it be the case, it is suggested that you input an "m" as an id to skips this part. ****');
   }
   prompt.get([{
     name: 'id',
@@ -863,12 +877,24 @@ function loginMatrix(fromData, loginUsername, password) {
     }
   }, function(e, response, body) {
     if (e) return informConnectionFailed(e);
-    body = JSON.parse(body);
+    var parseErr = null;
+    try {
+      body = JSON.parse(body);
+    } catch (e) {
+      parseErr = e;
+    }
+    if (parseErr) {
+      informParseErr(parseErr, 'login result');
+      if (chinese) console.log("出现错误，请重试 :(");
+      else console.log("Error occurred. Please retry :(");
+      return chooseAccount();
+    }
+    parseErr = null;
     if (body.err) {
       var errorText = body.msg, incorrectCombi = false;  // incorrect username and password combination
       console.log('\nError:', errorText);
       if (chinese) console.log("登录失败，请重试 :(");
-      else console.log("Login failed, please retry :(");
+      else console.log("Login failed. Please retry :(");
       if (~errorText.indexOf('Username is not found')
         || ~errorText.indexOf('Password is not match')) incorrectCombi = true;
       if (fromData && incorrectCombi) {
@@ -902,11 +928,7 @@ function loginMatrix(fromData, loginUsername, password) {
             || result.store == 'Yes' || result.store == 'YES') {  // yes
           usersDataManager.addAccount(username, password);
           usersDataManager.writeDataTo(usersdataFilename, function(err) {
-            if (err) {
-              if (chinese) console.log('\n保存失败\n');
-              else console.log('\nFailed to store\n');
-              return getAssignmentsId();
-            }
+            if (err) return getAssignmentsId();
             if (chinese) console.log('... 保存成功\n');
             else console.log('... successfully stored\n');
             return getAssignmentsId();
@@ -988,9 +1010,7 @@ function welcome() {
 // process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 
 request.get(matrixRootUrl, function(err, response, body) {
-  if (err) {
-    informConnectionFailed(err);
-  }
+  if (err) return informConnectionFailed(err);
   new UsersDataManager(usersdataFilename, function(err, self) {
     if (err) return;
     else return usersDataManager = self, welcome();
