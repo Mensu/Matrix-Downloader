@@ -144,7 +144,7 @@ function fetchLatestSubmissionOutput(problemId, foldername, getAc, overwrite, ca
       * private but independent
       */
     var prefixWithZero = function(date) {
-      date = date.replace(/(\/)(?=(\d)(\D))/g, '-0').replace(/( )(?=(\d)(\D))/g, ' 0').replace(/((\:)(?=(\d)(\D)))|((\:)(?=(\d)$))/g, ':0');
+      date = date.replace(/(\/)(?=(\d)(\D))/g, '-0').replace(/( )(?=(\d)(\D))/g, ' 0').replace(/((\:)(?=(\d)(\D)))|((\:)(?=(\d)$))/g, ':0').replace(/(\/)/g, '-');
       if (windows) return date.replace(/\:/g, '-');
       else return date;
     };
@@ -170,7 +170,7 @@ function fetchLatestSubmissionOutput(problemId, foldername, getAc, overwrite, ca
     request.get(matrixRootUrl + '/get-last-submission-report?problemId=' + problemId + '&userId=' + userId, function(e, r, body) {
     
     /* for debug */
-    // request.get('https://eden.sysu.edu.cn/get-submission-by-id?submissionId=' + problemId, function(e, r, body) {  
+    // request.get('https://eden.sysu.edu.cn/get-submission-by-id?submissionId=' + 3862, function(e, r, body) {  
     /* end */
 
       /** if connection failed
@@ -405,6 +405,14 @@ function fetchLatestSubmissionOutput(problemId, foldername, getAc, overwrite, ca
               return ret;
             }
             var test = tests[i], resultCode = test.result;
+            if (test.error || test.message != 'Program finished running.') {
+              var msg = (test.error) ? test.error : test.message;
+              content += '\n============ ' + prefixTitle + ' Test #' + (parseInt(i) + 1) + ' ===============\n';
+              content += 'Error: ' + msg + '\n';
+              if (test.stdin) content += '\n Test input:\n' + wrapBorder(wrapStdin(wrap(test.stdin, '\n'), 0)) + '\n';
+              ++wrongNum;
+              continue;
+            }
             if (ac) {
               if (resultCode != 'CR') continue;
             } else {
