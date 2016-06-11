@@ -67,16 +67,16 @@ That means, both ``577 588c 599c`` and ``577 c 588 599`` work.
 
 There are some precompiled binaries ( by using ``enclose`` )
 
-[``Windows-32bit``](https://github.com/Mensu/matrix-output-polisher/releases/download/v0.3-alpha/MatrixOutputPolisher-Win32.exe)
+[``Windows-32bit``](https://github.com/Mensu/matrix-output-polisher/releases/download/v0.3.2-alpha/MatrixOutputPolisher-Win32.exe)
 ``13.4 MB``
 
-[``Windows-64bit``](https://github.com/Mensu/matrix-output-polisher/releases/download/v0.3.1-alpha/MatrixOutputPolisher-Win64.exe)
+[``Windows-64bit``](https://github.com/Mensu/matrix-output-polisher/releases/download/v0.3.2-alpha/MatrixOutputPolisher-Win64.exe)
 ``16.9 MB``
 
-[``Mac-64bit``](https://github.com/Mensu/matrix-output-polisher/releases/download/v0.3.1-alpha/MatrixOutputPolisher-Mac64)
+[``Mac-64bit``](https://github.com/Mensu/matrix-output-polisher/releases/download/v0.3.2-alpha/MatrixOutputPolisher-Mac64)
 ``21.3 MB``
 
-[``Ubuntu-64bit``](https://github.com/Mensu/matrix-output-polisher/releases/download/v0.3.1-alpha/MatrixOutputPolisher-Ubuntu64)
+[``Ubuntu-64bit``](https://github.com/Mensu/matrix-output-polisher/releases/download/v0.3.2-alpha/MatrixOutputPolisher-Ubuntu64)
 ``23.2 MB``
 
 You only need to execute it

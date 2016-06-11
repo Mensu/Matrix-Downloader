@@ -338,7 +338,7 @@ function fetchLatestSubmissionOutput(problemId, foldername, getAc, overwrite, ca
               */
             var addLinenum = function(str, your) {
               // a mark prefixed before lines
-              var prefix = ((your) ? 'Your ' : ' Std ');
+              var prefix = ((your == true) ? 'Your ' : ((your == false) ? ' Std ' : ''));
 
               // special cases
               if (str == '(missing)\n') return '*********|(Missing)\n';
@@ -405,7 +405,8 @@ function fetchLatestSubmissionOutput(problemId, foldername, getAc, overwrite, ca
               return ret;
             }
             var test = tests[i], resultCode = test.result;
-            if (test.error || test.message != 'Program finished running.') {
+
+            if (!ac && (test.error || (test.message && test.message != 'Program finished running.'))) {
               var msg = (test.error) ? test.error : test.message;
               content += '\n============ ' + prefixTitle + ' Test #' + (parseInt(i) + 1) + ' ===============\n';
               content += 'Error: ' + msg + '\n';
@@ -427,7 +428,7 @@ function fetchLatestSubmissionOutput(problemId, foldername, getAc, overwrite, ca
             content += 'Memory used: ' + wrap(memory, 'KB') + '  Time used: ' + wrap(time, 'ms') + '\n\n';
             content += ' Test input:\n' + wrapBorder(wrapStdin(wrap(stdin, '\n'), 0)) + '\n';
             if (ac) {
-              content += '          Answer:\n' + wrapBorder(addLinenum(wrap(stdout)), 9) + '\n';
+              content += '     Answer:\n' + wrapBorder(addLinenum(wrap(stdout)), 4) + '\n';
             } else {
               content += '          Standard answer:\n' + wrapBorder(addLinenum(wrap(standard_stdout), false), 9) + '\n';
               content += '          Your answer:\n' + wrapBorder(addLinenum(wrap(stdout), true), 9) + '\n';
@@ -438,10 +439,10 @@ function fetchLatestSubmissionOutput(problemId, foldername, getAc, overwrite, ca
           }
           if (!ac && !wrongNum) content += 'pass\n';
         };
-        if (tests[0] && tests[0].message == "Malicious code detected! This unusual behavior will be recorded  by the system") {
-          content += '\nError: ' + tests[0].message + '\n';
-          return;
-        }
+        // if (tests[0] && tests[0].message == "Malicious code detected! This unusual behavior will be recorded  by the system") {
+        //   content += '\nError: ' + tests[0].message + '\n';
+        //   return;
+        // }
         polish(false);
         if (getAc) polish(true);
       };
@@ -705,12 +706,19 @@ function UsersDataManager(filename, callback) {
     // this => *this && public
   this.data = null;
   this.total = 0;
+  this.template = {'users': [], 'config': {'submissionOutputExtension': '.txt'}};
   var self = this;
+  UsersDataManager.prototype.writeDataTo = function(filename, callback) {
+    writeFile('./' + filename, JSON.stringify(this.data), function(err) {
+      if (callback) callback(err);
+      else throw err;
+    });
+  };
   UsersDataManager.prototype.readDataFrom = function(filename, callback) {
     fs.stat(filename, function(err, stat) {
       if (err) {
           // create an empty usersDataManager object
-        self.data = {'users': [], 'config': {'submissionOutputExtension': '.txt'}};
+        self.data = self.template;
         self.total = self.data.users.length;
         if (callback) callback(null);
       } else {
@@ -720,13 +728,23 @@ function UsersDataManager(filename, callback) {
             if (callback) console.log('\nError:', err.code, err.message), callback(err);
             else throw err;
           } else {
+            var toUpdate = false;
+            var fixUndefined = function(body, item) {
+              if (body && self.data[body][item] == undefined) self.data[body][item] = self.template[body][item], toUpdate = true;
+              else self.data[item] = self.template[item], toUpdate = true;
+            };
               // create a usersDataManager object from the file
             try {  
               self.data = JSON.parse(rawData);
               self.total = 0;
-              submissionOutputExtension = self.data.config.submissionOutputExtension.substr(0);
               for (i in self.data.users)
-                if (self.data.users[i].username.length && self.data.users[i].password.length) ++self.total;
+                if (self.data.users[i].username.length && (self.data.users[i].password == undefined || self.data.users[i].password.length)) ++self.total;
+              fixUndefined(null, 'config');
+              fixUndefined('config', 'submissionOutputExtension');
+              submissionOutputExtension = self.data.config.submissionOutputExtension;
+
+              if (toUpdate) self.writeDataTo(usersdataFilename, function(err) {});
+
             } catch (e) {
               console.log('\nError:', e.code + ": " + e.message);
               if (chinese) console.log('  *** 错误：' + filename + ' 文件似乎被修改过，无法被解释器识别了。\
@@ -735,7 +753,7 @@ function UsersDataManager(filename, callback) {
 been modified and could not be recognized any more. \
 The orginal ' + filename + ' file will get overwritten when \
 new username and password patterns are allowed to stored.');
-              self.data = {'users': [], 'config': {'submissionOutputExtension': '.txt'}};
+              self.data = self.template;
               self.total = self.data.users.length;
               submissionOutputExtension = self.data.config.submissionOutputExtension.substr(0);
               if (callback) return callback(null);
@@ -745,12 +763,6 @@ new username and password patterns are allowed to stored.');
           }
         });
       }
-    });
-  };
-  UsersDataManager.prototype.writeDataTo = function(filename, callback) {
-    writeFile('./' + filename, JSON.stringify(this.data), function(err) {
-      if (callback) callback(err);
-      else throw err;
     });
   };
   UsersDataManager.prototype.listUsernames = function() {
@@ -772,7 +784,7 @@ new username and password patterns are allowed to stored.');
       "username": username,
       "password": password
     }
-    ++(this.total);
+    this.total = this.data.users.length;
   };
   UsersDataManager.prototype.getAccountByListedIndex = function(index) {
     if (1 <= index && index <= this.total) return this.data.users[index - 1];
@@ -782,7 +794,7 @@ new username and password patterns are allowed to stored.');
     this.data.users[this.findAccountByUsername(username)]
       = this.data.users[this.total - 1];
     this.data.users.pop();
-    --(this.total);
+    this.total = this.data.users.length;
     this.writeDataTo(usersdataFilename, function(err) {
       if (err) {
         if (chinese) console.log('\n保存失败\n');
@@ -812,8 +824,8 @@ function getAssignmentsId() {
     console.log('  *** 像 586 587c 588 c 5 6 7');
     console.log('         => 586(不要CR) 587(要CR) 588(不要CR) 5(要CR) 6(要CR) 7(要CR)');
     console.log('  *** 同理，输入 "w" 或 "W" 可以覆盖本地已储存的输出（默认不覆盖）');
-    console.log('  *** 您还可以输入 "!.js!"、"!.md!" 等作为[第一个 id ]来修改输出文件的后缀名');
-    console.log('\n  **** 内存检查的部分有可能导致程序编译出错，万一出错了，您可先输入 "m" 作为 id 取消该部分输出 ****');
+    console.log('  *** 您还可以输入 ".js"、".md" 等来设置输出文件的后缀名，或者[敲下回车]跳过');
+    // console.log('\n  **** 内存检查的部分有可能导致程序编译出错，万一出错了，您可先输入 "m" 作为 id 取消该部分输出 ****');
   } else {
     console.log("Please input the Problem Id");
     // console.log('or [simply press Enter] to fetch unfinished Problems');
@@ -826,18 +838,28 @@ function getAssignmentsId() {
     console.log('  *** like 586 587c 588 c 5 6 7');
     console.log('         => 586(No CR) 587(CR) 588(No CR) 5(CR) 6(CR) 7(CR)');
     console.log('  *** Likewise, appending a "w" or "W" after an id would lead to overwriting the local file, which is not default');
-    console.log('  *** You may input "!.js!" or "!.md!" or ... as [the first id] to change the file extestion of output');
-    console.log('\n  **** The part of Memory Check is likely to result in syntax error when the program is running. Should it be the case, it is suggested that you input an "m" as an id to skips this part. ****');
+    console.log('  *** You may input ".js" or ".md" or ... to set the file extestion of output, or [simply press Enter] to skip');
+    // console.log('\n  **** The part of Memory Check is likely to result in syntax error when the program is running. Should it be the case, it is suggested that you input an "m" as an id to skips this part. ****');
   }
   prompt.get([{
     name: 'id',
     type: 'string',
     before: function(id) {return id.split(' ');}
+  }, {
+    'name': 'ext',
+    'description': (chinese) ? '输出文件的拓展名 (可选)' : 'file extension (optional)',
+    'type': 'string'
   }], function(err, result) {
     if (err) throw err;
     var fetched = false, getAcOutputAfter = false, overwriteAfter = false, extensionSet = false;  // flag for unfinished problems
     var rawId = result.id, countValidId = 0;
     var idArray = new Array();
+    if (result.ext.length) {
+      var ext = result.ext;
+      if (ext.match(/^\..{1,}$/)) {
+        extensionSet = true, submissionOutputExtension = ext;
+      }
+    }
       // simply press Enter => fetch unfinished problems
     // if (rawId.length == 1 && rawId[0] == '') {
 
@@ -847,8 +869,8 @@ function getAssignmentsId() {
       if (!extensionSet && oneId.match(/^\!\..{1,}\!$/)) {
         extensionSet = true, submissionOutputExtension = oneId.slice(1, -1);
       // } else if (!fetched && oneId.match(/^u$/)) {
-      } else if (oneId.match(/^[Mm]$/)) {
-        cancelMemoryCheck = true;
+      // } else if (oneId.match(/^[Mm]$/)) {
+      //   cancelMemoryCheck = true;
       } else if (oneId.match(/^[Cc]$/)) {
         getAcOutputAfter = true;
       } else if (oneId.match(/^[Ww]$/)) {
