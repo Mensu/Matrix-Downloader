@@ -847,7 +847,7 @@ function getAssignmentsId() {
     before: function(id) {return id.split(' ');}
   }, {
     'name': 'ext',
-    'description': (chinese) ? '输出文件的拓展名 (可选)' : 'file extension (optional)',
+    'description': (chinese) ? '输出文件的拓展名 (可选)' : 'output file extension (optional)',
     'type': 'string'
   }], function(err, result) {
     if (err) throw err;
