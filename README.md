@@ -34,20 +34,22 @@ That means, both ``577 588c 599c`` and ``577 c 588 599`` work.
 
 - ``c`` to get CR samples
 - ``w`` to overwrite the local output file
-- ``!.js!`` to set the file extension of output file to .js
-- ``m`` to cancel Memory Check part
 
 ###### example
 
-``prompt:  id: 577 588c 591 598cw 589 w 488 m 666``
+~~~
+prompt:  id: 577 588c 591 598cw 589 w 488 666
+prompt:  file extension (optional): .js
+~~~
 
-- 577: default (No CR samples, No overwriting, get Memory Check)
-- 588: get CR samples
-- 591: default
-- 598: get CR samples, overwrite local output file
-- 589: default
-- 488: overwrite local output file
-- 666: overwrite local output file, skip Memory Check
+- ``577``: default (No CR samples, No overwriting, get Memory Check)
+- ``588``: get CR samples
+- ``591``: default
+- ``598``: get CR samples, overwrite local output file
+- ``589``: default
+- ``488``: overwrite local output file
+- ``666``: overwrite local output file
+- ``.js``: set to .js the file extension of output file
 
 # Demo
 - compile check  

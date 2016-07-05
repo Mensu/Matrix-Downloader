@@ -1,7 +1,7 @@
-var windows = false;
-var mac = true;
+var windows = true;
+var mac = false;
 var ubuntu = false;
-var chinese = false;
+var chinese = true;
 
 var sanitize = require('sanitize-filename');
 var request = require('request');
@@ -14,7 +14,7 @@ var crypto = require('crypto');
 var sprintf = require('sprintf-js').sprintf;
 var diff = require('diff');
 
-var matrixRootUrl = 'https://eden.sysu.edu.cn';
+var matrixRootUrl = 'https://eden.sysu.edu.cn:8000';
 var usersdataFilename = '.usersdata';
 var outputExt = '.txt';
 var username = '', userId = '', usersDataManager = null, savePath = './saved';
@@ -22,7 +22,8 @@ var username = '', userId = '', usersDataManager = null, savePath = './saved';
 var cancelMemoryCheck = false;
 var recursiveCall = 50;
 
-var modes = {'submitCodes': 1, 'specificOutput': 2, 'latestOutput': 3};
+var modes = {'submitCodes': 1, 'specificOutput': 2, 'latestOutput': 3,
+'downloadProblem': 4, 'downloadSubmittedCodes': 5};
 
 function getMD5(data) { return crypto.createHash('md5').update(data).digest('hex'); }
 
@@ -90,6 +91,58 @@ function informConnectionFailed(err, problemId) {
     console.log(hint);
   }
   if (err) throw err;
+}
+
+function submitAtString(str) {
+  var date = new Date();
+  if (~str.indexOf('.000Z')) {
+    date.setUTCFullYear(str.substring(0, 4)), date.setUTCMonth(parseInt(str.substring(5, 7)) - 1), date.setUTCDate(str.substring(8, 10)), date.setUTCHours(str.substring(11, 13)), date.setUTCMinutes(str.substring(14, 16)), date.setUTCSeconds(str.substring(17, 19));
+    return date.getFullYear() + '/' + (parseInt(date.getMonth()) + 1) + '/' + date.getDate() + ' ' + date.getHours() + ':' + date.getMinutes() + ':' + date.getSeconds();
+  } else {
+    date.setFullYear(str.substring(0, 4)), date.setMonth(parseInt(str.substring(5, 7)) - 1), date.setDate(str.substring(8, 10)), date.setHours(str.substring(11, 13)), date.setMinutes(str.substring(14, 16)), date.setSeconds(str.substring(17, 19));
+    return date.getUTCFullYear() + '-' + (parseInt(date.getUTCMonth()) + 1) + '-' + date.getUTCDate() + 'T' + date.getUTCHours() + ':' + date.getUTCMinutes() + ':' + date.getUTCSeconds() + '.000Z';
+  }
+}
+
+function toSubmitAt(str, toReadable) {
+  var date = new Date();
+  var prefixZero = function(str) {
+    return (String(str).length - 1) ? String(str) : '0' + str;
+  }
+  var to000Z = function() {
+    date.setFullYear(str.substring(0, 4)), date.setMonth(parseInt(str.substring(5, 7)) - 1), date.setDate(str.substring(8, 10)), date.setHours(str.substring(11, 13)), date.setMinutes(str.substring(14, 16)), date.setSeconds(str.substring(17, 19));
+    return date.getUTCFullYear() + '-' + prefixZero(parseInt(date.getUTCMonth()) + 1) + '-' + prefixZero(date.getUTCDate()) + 'T' + prefixZero(date.getUTCHours()) + ':' + prefixZero(date.getUTCMinutes()) + ':' + prefixZero(date.getUTCSeconds()) + '.000Z';
+  };
+  var toNormal = function() {
+    date.setUTCFullYear(str.substring(0, 4)), date.setUTCMonth(parseInt(str.substring(5, 7)) - 1), date.setUTCDate(str.substring(8, 10)), date.setUTCHours(str.substring(11, 13)), date.setUTCMinutes(str.substring(14, 16)), date.setUTCSeconds(str.substring(17, 19));
+    return date.getFullYear() + '-' + prefixZero(parseInt(date.getMonth()) + 1) + '-' + prefixZero(date.getDate()) + ' ' + prefixZero(date.getHours()) + ':' + prefixZero(date.getMinutes()) + ':' + prefixZero(date.getSeconds());
+  }
+  if (~str.indexOf('.000Z')) {
+      if (toReadable || toReadable === undefined) return toNormal();
+      else return str;
+  } else {
+      if (toReadable) return str;
+      else return to000Z();
+  }
+  // if (toReadable === undefined) {
+  //   if (~str.indexOf('.000Z')) {
+  //     return toNormal();
+  //   } else {
+  //     return to000Z();
+  //   }
+  // } else if (toReadable) {
+  //   if (~str.indexOf('.000Z')) {
+  //     return toNormal();
+  //   } else {
+  //     return str;
+  //   }
+  // } else {
+  //   if (~str.indexOf('.000Z')) {
+  //     return str;
+  //   } else {
+  //     return to000Z();  
+  //   }
+  // }
 }
 
 function encloseJSWarning() {
@@ -197,9 +250,10 @@ function fetchSubmissionOutput(problemId, submissionId, submitAt, foldername, ge
       /** if connection failed
         *  => skip current problemId
         */
+      var filename = problemId + ' Output ' + ((getAc) ? '(including CR) ' : '') + suffixTime + outputExt;
       if (e) {
         console.log('\nError:', e.message, 'problemId = ', problemId);
-        if (callback) return callback(e);
+        if (callback) return callback(e, filename);
         else throw e;
       }
 
@@ -218,7 +272,7 @@ function fetchSubmissionOutput(problemId, submissionId, submitAt, foldername, ge
         var err = (parseErr) ? parseErr : bodyErr;
         if (parseErr) informParseErr(err, 'report body');
         else if (bodyErr) informBodyErr(err);
-        if (callback) return callback(err);
+        if (callback) return callback(err, filename);
         else throw err;
       }
       
@@ -244,7 +298,7 @@ function fetchSubmissionOutput(problemId, submissionId, submitAt, foldername, ge
         */
       if (!data) {
         console.log('\nError:', existenceError.message);
-        if (callback) return callback(existenceError);
+        if (callback) return callback(existenceError, filename);
         else return;
       }
 
@@ -253,7 +307,7 @@ function fetchSubmissionOutput(problemId, submissionId, submitAt, foldername, ge
         */
       var grade = data.grade, report = null;
 
-      if (getGrading && (!~grade || grade == null)) {
+      if (getGrading && (!~grade || grade === null)) {
         --recursiveCall;
         if (recursiveCall) {
           return setTimeout(function() {
@@ -261,7 +315,7 @@ function fetchSubmissionOutput(problemId, submissionId, submitAt, foldername, ge
             }, 5000);
         } else {
           console.log('\nError:', existenceError.message);
-          if (callback) return callback(existenceError);
+          if (callback) return callback(existenceError, filename);
           else return;
         }
       }
@@ -274,6 +328,7 @@ function fetchSubmissionOutput(problemId, submissionId, submitAt, foldername, ge
         */
       try {
         report = JSON.parse(data.report);
+
       } catch (e) {
         try {
           report = JSON.parse(data.report + ' more data..."}]}}');
@@ -283,7 +338,7 @@ function fetchSubmissionOutput(problemId, submissionId, submitAt, foldername, ge
       }
       if (parseErr) {
         informParseErr(parseErr, 'report content');
-        if (callback) return callback(parseErr);
+        if (callback) return callback(parseErr, filename);
         else throw parseErr;
       }
 
@@ -298,7 +353,7 @@ function fetchSubmissionOutput(problemId, submissionId, submitAt, foldername, ge
         */
       if (!report) {
         console.log('\nError:', existenceError.message);
-        if (callback) return callback(existenceError);
+        if (callback) return callback(existenceError, filename);
         else return;
       } else if (report.error) {
         content += '\nError: ' + report.error + '\n';
@@ -612,20 +667,21 @@ function fetchSubmissionOutput(problemId, submissionId, submitAt, foldername, ge
 
                 // false: not to overwrite
       // if (hasMemory)
-      createFile(overwrite, savePath + '/' + foldername + '/' + 'Latest Submission Outputs/' + problemId + ' Output ' + ((getAc) ? '(including CR) ' : '') + suffixTime + outputExt, content, function(err) {
-        if (callback) return callback(err);
+      
+      createFile(overwrite, savePath + '/' + foldername + '/' + 'Submission Outputs/' + filename, content, function(err) {
+        if (callback) return callback(err, filename);
         else return;
       });
     };
   // });
   var suffixTime = '';
   if (submissionId) {
-    suffixTime = prefixWithZero('at ' + submitAt);
-    return request.get(matrixRootUrl + '/get-submission-by-id?submissionId=' + submissionId, afterGetSubmission);
+    suffixTime = prefixWithZero('at ' + toSubmitAt(submitAt, true));
+    return request.get(matrixRootUrl + '/one-submission?submissionId=' + submissionId, afterGetSubmission);
   } else {
     var date = new Date();
     suffixTime = prefixWithZero('downloaded at ' + date.getFullYear() + '/' + (parseInt(date.getMonth()) + 1) + '/' + date.getDate() + ' ' + date.getHours() + ':' + date.getMinutes() + ':' + date.getSeconds());
-    return request.get(matrixRootUrl + '/get-last-submission-report?problemId=' + problemId + '&userId=' + userId, afterGetSubmission);
+    return request.get(matrixRootUrl + '/last-submission-report?problemId=' + problemId + '&userId=' + userId, afterGetSubmission);
   }
 }
 
@@ -665,7 +721,8 @@ function fetchSubmissionOutput(problemId, submissionId, submitAt, foldername, ge
 // }
 
 function FetchOne(problemId, tobeDone, getAc, overwrite, mode, callback) {
-  request.get(matrixRootUrl + '/get-problem-by-id?problemId=' + problemId, function(e, r, body) {
+
+  request.get(matrixRootUrl + '/one-problem?problemId=' + problemId, function(e, r, body) {
     if (e) {
       console.log('\nError:', e.code, e.message);
       informConnectionFailed(null, problemId);
@@ -695,22 +752,24 @@ function FetchOne(problemId, tobeDone, getAc, overwrite, mode, callback) {
     var error = null;
 
     var fetch = function(submissionId, submitAt, getac, over, getGrading) {
-      fetchSubmissionOutput(problemId, submissionId, submitAt, problemId + ' ' + title, getac, over, getGrading, function(err) {
+      fetchSubmissionOutput(problemId, submissionId, submitAt, problemId + ' ' + title, getac, over, getGrading, function(err, filename) {
         var error = null;
         if (err) error = err;
-        informFetchResult(error, problemId);
+        informFetchOutputResult(error, filename);
         if (callback) return callback();
       });
     };
-
     if (mode == modes.submitCodes) {
       var filesToSubmit = {'fileNum': 0};
-      getCodeFilesFromUser(codeFilenames, filesToSubmit, codeFilenames.length, function(err, filesToSubmit, submitTime) {
+      getCodeFilesFromUser(codeFilenames, filesToSubmit, codeFilenames.length, function(err, filesToSubmit) {
         if (err) {
-          console.log('get codes file Failed. Please try again.');
-          return getCodeFilesFromUser(codeFilenames, {'fileNum': 0}, codeFilenames.length, arguments.callee);
+          if (chinese) console.log('读取代码文件时出错。请重试');
+          else console.log('Errors occurred when it was reading code files. Please try again.');
+          filesToSubmit = {'fileNum': 0};
+          return getCodeFilesFromUser(codeFilenames, filesToSubmit, codeFilenames.length, arguments.callee);
         } else {
-          getSubmissionTimeFromUser(function(submitDate) {
+          // getSubmissionTimeFromUser(function(err, submitDate) {
+            var submitDate = null;
             var date = submitDate;
             var submitAt = '';
             var prefixWithZero = function(date) {
@@ -719,18 +778,21 @@ function FetchOne(problemId, tobeDone, getAc, overwrite, mode, callback) {
 
             if (submitDate == null) date = new Date();
             submitAt = prefixWithZero(date.getUTCFullYear() + '-' + (parseInt(date.getUTCMonth()) + 1) + '-' + date.getUTCDate() + 'T' + date.getUTCHours() + ':' + date.getUTCMinutes() + ':' + date.getUTCSeconds() + '.000Z');
-            submitAnswer(problemId, submitAt, filesToSubmit, function(err, submissionId) {
+
+            submitAnswer(problemId, undefined, filesToSubmit, function(err, submissionId) {
               if (err) {
-                console.log('submit Failed');
+                if (chinese) console.log('提交失败');
+                else console.log('Failed to submit');
                 if (callback) return callback();
                 else return;
               } else {
                 recursiveCall = 50;
-                console.log('submit Success. getting submission output at', date.toLocaleString());
-                fetch(submissionId, date.toLocaleString(), getAc, overwrite, true);
+                if (chinese) console.log('提交成功。正在获取', submitAtString(submitAt), '时提交的结果');
+                else console.log('Submitted successfully. Getting submission output at', date.toLocaleString());
+                fetch(submissionId, submitAt, getAc, overwrite, true);
               }
             });
-          });
+          // });
         }
       });
     } else if (mode == modes.specificOutput) {
@@ -760,6 +822,54 @@ function FetchOne(problemId, tobeDone, getAc, overwrite, mode, callback) {
       });
     } else if (mode == modes.latestOutput) {
       fetch(undefined, undefined, getAc, overwrite, false);
+    } else if (mode == modes.downloadProblem) {
+      createFile(true, savePath + '/' + problemId + ' ' + title + '/Description.md', data.content, function(e) {
+        
+      });
+      for (i in supportFiles) {
+        createFile(true, savePath + '/' + problemId + ' ' + title + '/' + i, supportFiles[i], function(e) {
+        
+        });
+      }
+      for (i in codeFilenames) {
+        createFile(false, savePath + '/' + problemId + ' ' + title + '/' + codeFilenames[i], '', function(e) {
+        
+        });
+      }
+    } else if (mode == modes.downloadSubmittedCodes) {
+      getListOfSubmissions(problemId, 0, [], function(err, info) {
+        var submissionId = undefined, submitAt = undefined;
+        if (err) {
+          console.log('Failed to get submission list.');
+        } else if (info.length == 0) {
+          console.log('impossible to fetch any codes');
+        } else {
+          getSubmissionsIdFromUser(info.length, getAc, overwrite, function(err, id, getac, over) {
+            if (err) {
+              console.log('Failed to get submission id');
+              if (callback) return callback();
+              else throw err;
+            } else {
+              submissionId = info[id - 1].id, submitAt = info[id - 1].submitAt;
+              // for (i in supportFiles) {
+              //   createFile(true, savePath + '/' + problemId + ' ' + title + '/Submitted Codes/' + toSubmitAt(submitAt) + '/' + i, supportFiles[i], function(e) {
+                
+              //   });
+              // }
+              var submitTime = toSubmitAt(submitAt, true);
+              if (windows) submitTime = submitTime.replace(/:/g, '-');
+              getSubmittedCodes(submissionId, function(err, submittedCodeFiles) {
+                for (i in submittedCodeFiles) {
+                  createFile(false, savePath + '/' + problemId + ' ' + title + '/Submitted Codes/' + submitTime + '/' + i, submittedCodeFiles[i], function(e) {
+                  
+                  });
+                }
+              });
+            }
+          });
+        }
+        
+      });
     }
     
   });
@@ -775,19 +885,52 @@ function informFetchResult(error, Id) {
   }
 }
 
+function informFetchOutputResult(error, filename) {
+  if (chinese) {
+    if (error) console.log('  ... 下载 ' + filename + ' 时出错。');
+    else console.log('  ... 成功下载 ' + filename + '!');
+  } else {
+    if (error) console.log('  ... There occurred some errors when ' + filename + ' are being downloaded.');
+    else console.log('  ... ' + filename + ' downloaded successfully!');
+  }
+}
+
+function getSubmittedCodes(submissionId, callback) {
+  request.get(matrixRootUrl + '/one-submission-code?submissionId=' + submissionId, function(e, r, body) {
+    var parseErr = null;
+      try {
+        body = JSON.parse(body);
+      } catch (e) {
+        parseErr = e;
+      }
+      if (parseErr || (body && body.err)) {
+        var bodyErr = (body && body.err) ? new Error(body.msg) : null;
+        var err = (parseErr) ? parseErr : bodyErr;
+        if (parseErr) informParseErr(err, 'submitted codes body');
+        else if (bodyErr) informBodyErr(err);
+        if (callback) return callback(err, filename);
+        else throw err;
+      }
+      parseErr = null;
+      if (callback) callback(null, body.data);
+      else return;
+  });
+}
+
 function submitAnswer(problemId, submitAt, filesToSubmit, callback) {
   // submitAt = '2016-06-11T06:46:26.000Z';
   // return console.log(problemId, submitAt, filesToSubmit);
   request.post({
-    'url': matrixRootUrl + '/add-a-submission',
+    'url': matrixRootUrl + '/one-submission',
     'form': {
-      'answerCode': filesToSubmit,
+      'codeFiles': filesToSubmit,
       'problemId': problemId,
-      'submitAt': submitAt,
       'userId': userId
     }
   }, function(e, r, body) {
-    callback(null, JSON.parse(body).data);
+    var body = JSON.parse(body);
+    if (body.err) console.log('\nError:', body.msg);
+    return callback(body.err, body.data);
   });
 }
 
@@ -852,7 +995,7 @@ function getSubmissionTimeFromUser(callback) {
         else console.log('Invalid submission time. Please try again.');
         return getSubmissionTimeFromUser(callback);
       } else {
-        if (submitDate === null) return callback(submitDate);
+        if (submitDate === null) return callback(null, submitDate);
         else console.log(((chinese) ? '确定要在这个时间提交' : 'Are you sure you want to submit at'), submitDate.toLocaleString(), '?');
         prompt.get([{
           "name": 'confirm',
@@ -861,7 +1004,7 @@ function getSubmissionTimeFromUser(callback) {
           if (err) throw err;
           if (result.confirm == 'y' || result.confirm == 'Y' || result.confirm == 'yes'
               || result.confirm == 'Yes' || result.confirm == 'YES') {  // yes
-              return callback(submitDate);
+              return callback(null, submitDate);
           } else {
             if (chinese) console.log('那再输入一次吧');
             else console.log('Then you might want to input again');
@@ -880,7 +1023,7 @@ function packFiles(filename, codes, filesToSubmit, expectedFileNum, cntFileRead,
   if (filesToSubmit.fileNum == expectedFileNum) {
     return callback(null, filesToSubmit);
   } else if (cntFileRead == expectedFileNum) {
-    return callback(new Error('Files too few'));
+    return callback(new Error('Too few files to submit'));
   } else return;
 }
 
@@ -1031,41 +1174,26 @@ function getCodeFilesFromUser(codeFilenames, filesToSubmit, expectedFileNum, cal
 
         if (completeFilename != '') {
             // filename is valid => 
-          if (chinese) console.log('准备提交 "' + filenameInfo.dir + '/' + filenameInfo.base + '" 中的内容');
-          else console.log('Ready to submit the content of "' + filenameInfo.dir + '/' + filenameInfo.base + '"');
+          if (chinese) console.log('准备提交 "' + filenameInfo.dir + (windows ? '\\' : '/') + filenameInfo.base + '" 中的内容');
+          else console.log('Ready to submit the content of "' + filenameInfo.dir + (windows ? '\\' : '/') + filenameInfo.base + '"');
           
           readDataFrom(filenameInfo, codeFilenames[i], function(err, filenameInfo, filename, rawData) {
-              ++cntFileRead;
-            // if (err) {
+            ++cntFileRead;
+            if (err) rawData = null;
+            packFiles(filename, rawData, filesToSubmit, expectedFileNum, cntFileRead, function(err, files) {
               if (err) {
-                console.log('   ... Failed to read "' + filenameInfo.dir + '/' + filenameInfo.base + '". Please get the file ready and try again...');
-                rawData = null;
+                console.log('\nError:', err.message);
+                if (callback) callback(err);
+                else throw err;
+              } else {
+                if (callback) return callback(null, files);
+                else return files;
               }
-            // } else {
-              packFiles(filename, rawData, filesToSubmit, expectedFileNum, cntFileRead, function(err, files) {
-                if (err) {
-                  console.log('\nError:', err.message);
-                  if (callback) callback(err);
-                  else throw err;
-                } else {
-                  
-                  return callback(null, files);
-                }
-              });
-            // }
             });
-        // } else if (completeFilename != '') {  // else => ignore
-        //   if (chinese) console.log('发现非法文件名 "' + completeFilename + '"');
-        //   else console.log('invalid filename "' + completeFilename + '" found');
-        //   invalidFileNames.push(codeFilenames[i]);
+          });
         }
       }
     }
-    // if (invalidFileNames.length) {
-    //   if (chinese) console.log('有些文件名是非法的。请重试');
-    //   else console.log('There are several invalid filenames. Please try again.');
-    //   getCodeFilesFromUser(invalidFileNames, filesToSubmit, expectedFileNum, callback);
-    // }
     
       // simply press Enter => polish "./output.txt"
       // console.log('');
@@ -1089,13 +1217,12 @@ function getCodeFilesFromUser(codeFilenames, filesToSubmit, expectedFileNum, cal
 
 
 function getListOfSubmissions(problemId, startPos, originData, callback) {
-  request.get(matrixRootUrl + '/get-one-assignment-info?position=' + startPos + '&problemId=' + problemId + '&status=2&userId=' + userId, function(e, r, body) {
+  request.get(matrixRootUrl + '/problem-submissions?position=' + startPos + '&problemId=' + problemId + '&userId=' + userId, function(e, r, body) {
     if (e) {
       console.log('\nError:', e.message, 'problemId = ', problemId);
       if (callback) return callback(e);
       else throw e;
     }
-
     var parseErr = null;
     try {
       body = JSON.parse(body);
@@ -1113,13 +1240,12 @@ function getListOfSubmissions(problemId, startPos, originData, callback) {
     
     parseErr = null;
 
-
     var data = body.data;
     if (!data) {
       console.log('\nError: No submissinos available.');
-      if (callback) return callback(new Error('No submissinos available.'));
+      if (callback) return callback(new Error('No submissions available.'));
       else return;
-    } else if (data.length == 0) {
+    } else if (true) {
       data = originData.concat(data);
       printListOfSubmissions(data);
       return callback(null, data);
@@ -1146,7 +1272,7 @@ function printListOfSubmissions(info) {
   if (info.length) {
     for (i in info) {
       var one = info[i];
-      console.log(sprintf('[' + format + ']', parseInt(i) + 1), 'at ' + prefixWithZero(one.submitAt), 'with Grade ' + one.grade);
+      console.log(sprintf('[' + format + ']', parseInt(i) + 1), 'at ' + prefixWithZero(submitAtString(one.submitAt)), 'with Grade ' + one.grade);
     }
   } else {
     console.log("You haven't submitted any codes for this Problem.");
@@ -1220,6 +1346,8 @@ function getSubmissionsIdFromUser(length, getAc, overwrite, callback) {
           ++countValidId;
           callback(null, trueId, getAcOutputAfter || getAc, overwriteAfter || overwrite);
         } else {
+          if (chinese) console.log('忽略非法id "' + oneId + '"');
+          else console.log('invalid id "' + oneId + '" ignored');
           continue;
         }
       } else if (oneId != '') {  // else => ignore
@@ -1237,9 +1365,9 @@ function getSubmissionsIdFromUser(length, getAc, overwrite, callback) {
 }
 
 function getListOfCurrentProblems(courseId, callback) {
-  request.get(matrixRootUrl + '/get-course-assignments?courseId=' + courseId + '&userId=' + userId, function(e, r, body) {
+  request.get(matrixRootUrl + '/exam-problems?examId=' + courseId + '&userId=' + userId, function(e, r, body) {
     if (e) {
-      console.log('\nError:', e.message, 'courseId = ', courseId);
+      console.log('\nError:', e.message, 'examId = ', courseId);
       if (callback) return callback(e);
       else throw e;
     }
@@ -1282,10 +1410,10 @@ function printListOfCurrentProblems(info) {
   if (info.length) {
     for (i in info) {
       var one = info[i];
-      console.log(sprintf(' Problem Id [' + format + ']:', one.problemId), ' ' + one.title);
+      console.log(sprintf(' Problem Id [' + format + ']:', one.id), ' ' + one.title);
     }
   } else {
-    console.log("No Current Problem.");
+    console.log("No Problems available.");
   }
   console.log('');
 }
@@ -1328,7 +1456,7 @@ function printListOfCurrentProblems(info) {
 
 function getOneProblemId(mode) {
   prompt.start();
-  getListOfCurrentProblems(27, function(err) {
+  getListOfCurrentProblems(6, function(err) {
     if (chinese) {
       console.log("请输入一个 Problem Id");
       // console.log('或者[敲下回车]下载未完成的 Problem');
@@ -1413,7 +1541,7 @@ function getOneProblemId(mode) {
 
 function getAssignmentsId(mode) {
   prompt.start();
-  getListOfCurrentProblems(27, function(err) {
+  getListOfCurrentProblems(6, function(err) {
     if (chinese) {
       console.log("请输入 Problem Id");
       // console.log('或者[敲下回车]下载未完成的 Problem');
@@ -1449,7 +1577,7 @@ function getAssignmentsId(mode) {
       before: function(id) {return id.split(' ');}
     }, {
       'name': 'ext',
-      'description': (chinese) ? '输出文件的拓展名 (可选)' : 'output file extension (optional)',
+      'description': (chinese) ? '输出文件的扩展名 (可选)' : 'output file extension (optional)',
       'type': 'string'
     }], function(err, result) {
       if (err) throw err;
@@ -1504,6 +1632,8 @@ function menu() {
   console.log('[1] submit codes');
   console.log('[2] download specific submission outputs');
   console.log('[3] download latest submission outputs');
+  console.log('[4] download problems');
+  console.log('[5] download submitted codes');
   console.log('[0] quit');
   prompt.get([{
     'name': 'choice',
@@ -1519,6 +1649,8 @@ function menu() {
       if (parseInt(choice) == 1) return getOneProblemId(modes.submitCodes);
       else if (parseInt(choice) == 2) return getOneProblemId(modes.specificOutput);
       else if (parseInt(choice) == 3) return getAssignmentsId(modes.latestOutput);
+      else if (parseInt(choice) == 4) return getAssignmentsId(modes.downloadProblem);
+      else if (parseInt(choice) == 5) return getOneProblemId(modes.downloadSubmittedCodes);
       else return console.log('try again'), menu();
     }
   });
@@ -1566,13 +1698,7 @@ function saveUsernameAndPassword(info, fromData, password) {
 function loginMatrix(fromData, loginUsername, password) {
   if (chinese) console.log('正在登录....');
   else console.log("Logging in....");
-  request.post({
-    url: matrixRootUrl + '/signin',
-    form: {
-      'username': loginUsername,
-      'password': password,
-    }
-  }, function(e, response, body) {
+  request.get(matrixRootUrl + '/one-user?password=' + password + '&username=' + loginUsername, function(e, response, body) {
     if (e) return informConnectionFailed(e);
     var parseErr = null;
     try {
@@ -1592,8 +1718,8 @@ function loginMatrix(fromData, loginUsername, password) {
       console.log('\nError:', errorText);
       if (chinese) console.log("登录失败，请重试 :(");
       else console.log("Login failed. Please retry :(");
-      if (~errorText.indexOf('Username is not found')
-        || ~errorText.indexOf('Password is not match')) incorrectCombi = true;
+      if (~errorText.indexOf('登录失败，你去找TA确认你的信息是否被导入')
+        || ~errorText.indexOf('登录失败，密码错了傻逼')) incorrectCombi = true;
       if (fromData && incorrectCombi) {
           // combination from usersDataManager is wrong => remove the wrong record
         return usersDataManager.removeAccountByUsername(loginUsername, function() {
@@ -1605,12 +1731,24 @@ function loginMatrix(fromData, loginUsername, password) {
       }
     }
     username = loginUsername, userId = body.data.id, savePath = './saved/' + username;
+    var data = null, studentId = null, nickname = null, realname = null;
+    try {
+      data = body.data, studentId = data.studentId, nickname = data.nickname, realname = data.realname;
+    } catch (e) {
+      console.log('\nError:', e.message);
+    }
+    var info = {'username': username,
+               'nickname': nickname,
+               'realname': realname,
+               'userId': userId,
+               'studentId': studentId};
+    printUserInfo(info);
     return saveUsernameAndPassword(body.data, fromData, password);
   });
 }
 
 function getUserInfoByUsername(username, callback) {
-  request.get(matrixRootUrl + '/home?username=' + username, function(e, r, body) {
+  request.get(matrixRootUrl + '/one-user?username=' + username, function(e, r, body) {
     if (e) {
       console.log('\nError: Username is not found.');
       if (callback) return callback(new Error('Username is not found.'));
@@ -1649,14 +1787,10 @@ function getUserInfoByUsername(username, callback) {
 function printUserInfo(info) {
   console.log('\n  username:', info.username, '\n',
               ' nickname:', info.nickname, '\n',
+              ' realname:', info.realname, '\n',
               '   userId:', info.userId, '\n',
               'studentId:', info.studentId, '\n');
-  if (info.notifications.length) {
-    console.log('notifications:');
-    info.notifications.forEach(function(each) {
-      console.log(each);
-    });
-  }
+  
 }
 
 function getUsernameAndPassword(chosenUser, requirePassword, fromData) {
@@ -1697,6 +1831,7 @@ function getUsernameAndPassword(chosenUser, requirePassword, fromData) {
   }];
   prompt.start();
   if (chosenUser.username) {
+    if (chosenUser.password) return loginMatrix(true, chosenUser.username, chosenUser.password);
     if (requirePassword) return prompt.get(passwordPrompt, function(err, result) {
         if (err) throw err;
         else return getCallback(null, {'username': chosenUser.username, 'password': result.password});
@@ -1711,7 +1846,7 @@ function getUsernameAndPassword(chosenUser, requirePassword, fromData) {
 function chooseAccount() {
   var total = usersDataManager.total;
   if (total == 0) {  // no users data stored locally => obtain username and password from user
-    getUsernameAndPassword({'username': undefined, 'password': undefined}, false, false);
+    getUsernameAndPassword({'username': undefined, 'password': undefined}, true, false);
   } else {
     if (chinese) {
       console.log("请从下列的账号列表中，选择一个账号并输入其序号登录");
@@ -1730,10 +1865,10 @@ function chooseAccount() {
       if (err) throw err;
       if (result.choice == '') {
           // simply press Enter => obtain username and password from user
-        return getUsernameAndPassword({'username': undefined, 'password': undefined}, false, false);
+        return getUsernameAndPassword({'username': undefined, 'password': undefined}, true, false);
       } else if (1 <= parseInt(result.choice) && parseInt(result.choice) <= total) {
           // valid index => obtain username and password from the chosen account
-        return getUsernameAndPassword(usersDataManager.getAccountByListedIndex(parseInt(result.choice)), false, true);
+        return getUsernameAndPassword(usersDataManager.getAccountByListedIndex(parseInt(result.choice)), true, true);
       } else {  // invalid index => choose again
         if (chinese) console.log("错误：检测到非法的序号。请重新输入一个正常的序号。");
         else console.log("Error: Invalid index detected. Please try again with a valid index.");
