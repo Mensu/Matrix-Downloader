@@ -1033,18 +1033,6 @@ function getCodeFilesFromUser(codeFilenames, filesToSubmit, expectedFileNum, cal
 
   if (chinese) console.log('请把对应的代码文件拖到这里');
   else console.log('Please drag and drop the code files into here');
-  // console.log('Please input the filenames (supports multiple filenames separated by spaces)');
-  // console.log('or [simply press Enter] to polish ./output.txt');
-  // console.log('  *** WARNING: The original file will get OVERWRITTEN! It is wise to backup in advance.');
-  // console.log('  *** Note: We only accept .txt files encoded in UTF-8.');
-  // console.log('  *** Note: It is suggested that you drag the file onto the terminal.');
-  // if (windows) {
-  //   console.log('  *** Note: If the filename contains white spaces like my output.txt, please bother to use double quotation marks ["]');
-  //   console.log('  *** my output.txt => "my output.txt"');
-  // } else {
-  //   console.log('  *** Note: If the filename contains white spaces like "my output.txt", please bother to add "\\" before white spaces');
-  //   console.log('  *** my output.txt => my\\ output.txt');
-  // }
   var filePrompt = [];
   for (i in codeFilenames) {
     var oneFilePrompt = {
@@ -1194,24 +1182,6 @@ function getCodeFilesFromUser(codeFilenames, filesToSubmit, expectedFileNum, cal
         }
       }
     }
-    
-      // simply press Enter => polish "./output.txt"
-      // console.log('');
-    // if (rawNames.length == 1 && rawNames[0] == '') {
-    //   console.log('Ready to polish "./output.txt"');
-    //   return readDataFrom("./output.txt", function(err, filename, rawData) {
-    //     if (err) {
-    //       if (err.code === "ENOENT") console.log('   ... Failed to polish "./output.txt". Please get the file ready and try again...');
-    //       start();
-    //     } else {
-    //       writeFile(filename, polishSubmissionOutput(rawData), function(err) {
-    //         if (err) console.log('   ... Failed to polish "' + filename + '"');
-    //         else console.log('   ..."' + filename + '" was polished successfully!');
-    //       });
-    //     }
-    //   });
-    // }
-    
   });
 }
 
@@ -1408,6 +1378,7 @@ function printListOfCurrentProblems(info) {
 
   console.log('');
   if (info.length) {
+    info.sort(function(a, b) { return (a.title < b.title) ? -1 : ((a.title == b.title) ? 0 : 1); })
     for (i in info) {
       var one = info[i];
       console.log(sprintf(' Problem Id [' + format + ']:', one.id), ' ' + one.title);
