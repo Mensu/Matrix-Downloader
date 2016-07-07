@@ -1,5 +1,5 @@
-var windows = true;
-var mac = false;
+var windows = false;
+var mac = true;
 var ubuntu = false;
 var chinese = true;
 
@@ -14,7 +14,7 @@ var crypto = require('crypto');
 var sprintf = require('sprintf-js').sprintf;
 var diff = require('diff');
 
-var matrixRootUrl = 'https://eden.sysu.edu.cn:8000';
+var matrixRootUrl = 'https://eden.sysu.edu.cn';
 var usersdataFilename = '.usersdata';
 var outputExt = '.txt';
 var username = '', userId = '', usersDataManager = null, savePath = './saved';
