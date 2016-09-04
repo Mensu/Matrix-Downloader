@@ -1,0 +1,25 @@
+{
+  "name": "matrix-downloader",
+  "version": "1.0.0",
+  "description": "download problems, submissions from and submit answers to Matrix",
+  "main": "entry.js",
+  "scripts": {
+    "start": "node entry.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Mensu/Matrix-Downloader"
+  },
+  "keywords": [
+    "Matrix",
+    "downloader"
+  ],
+  "dependencies": {
+		"inquirer": "*",
+		"request": "*",
+		"mkdirp": "*",
+    "path": "*"
+	},
+  "author": "Mensu",
+  "license": "MIT"
+}
