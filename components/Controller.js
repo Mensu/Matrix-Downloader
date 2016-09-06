@@ -10,10 +10,10 @@ var matrix = new MatrixObject(config.root);
 var usersData = new UsersData(config.usersdataFilename);
 
 function matrixRequestErrorHandler(error, info) {
-    if ( !(error instanceof Error) ) return Promise.reject([wrapError(error.msg, error.status, info)]); 
-    else if (error.errno == 'ENOTFOUND' || error.errno == 'ETIMEDOUT') return Promise.reject([wrapError(error, 'NO_INTERNET_ACCESS')]);
-    else if (error.errno == 'EPROTO') return Promise.reject([wrapError(error, 'INTERNAL_ERROR')]);
-    else return Promise.reject([wrapError(error, 'UNEXPECTED_DATA')]);
+  if ( !(error instanceof Error) ) return Promise.reject([wrapError(error.msg, error.status, info)]); 
+  else if (error.errno == 'ENOTFOUND' || error.errno == 'ETIMEDOUT') return Promise.reject([wrapError(error, 'NO_INTERNET_ACCESS')]);
+  else if (error.errno == 'EPROTO') return Promise.reject([wrapError(error, 'INTERNAL_ERROR')]);
+  else return Promise.reject([wrapError(error, 'UNEXPECTED_DATA')]);
 }
 
 

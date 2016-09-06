@@ -33,7 +33,12 @@ function httpRequest(method, url, param) {
           }
         }
         param = null;
-        request.get(url, function(error, response, body) {
+        request.get({
+          "url": url,
+          "headers": {
+            "User-Agent": 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/52.0.2743.116 Safari/537.36'
+          }
+        }, function(error, response, body) {
           if (error) return reject(error);
           else return resolve(body);
         });
@@ -41,7 +46,10 @@ function httpRequest(method, url, param) {
         // param = JSON.stringify(param);
         request.post({
           "url": url,
-          "form": param
+          "form": param,
+          "headers": {
+            "User-Agent": 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/52.0.2743.116 Safari/537.36'
+          }
         }, function(error, response, body) {
           if (error) return reject(error);
           else return resolve(body);
