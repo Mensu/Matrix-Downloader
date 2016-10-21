@@ -111,7 +111,8 @@ var phaseStack = {
 
 var UI = {
   "curUser": {
-    "problemType": null
+    "problemType": null,
+    "isTA": false
   },
   "start": function() {
     return Controller.init().catch(function(errs) {
@@ -126,6 +127,8 @@ var UI = {
       }
     }).then(function() {
       return UI.selectAccount();
+    }).catch(function(errs) {
+        return console.log();
     });
   },
   "printErrs": function(errs) {
@@ -133,8 +136,8 @@ var UI = {
     return errs.forEach(function(oneErr) {
       try {
         console.log(getMessage('error', oneErr.mcode));
-      } catch(e) {
-        console.log(oneErr);
+      } catch (e) {
+        console.log('Unexpected Error:', oneErr);
       }
       
     });
@@ -159,7 +162,9 @@ var UI = {
        } else {
          return UI.login(answers.username);
        }
-    });
+    }).catch(function(errs) {
+        UI.printErrs(errs);
+    });;
   },
   "login": function(username) {
     console.log('login starts');
@@ -217,17 +222,27 @@ var UI = {
                 return UI.selectFunction();
             });
         }, function(errs) {
+            var incorrectCombi = false;
             errs.forEach(function(oneErr) {
+              if (oneErr.mcode == 'USER_NOT_FOUND' || oneErr.mcode == 'WRONG_PASSWORD') {
+                incorrectCombi = true;
+              }
               console.log('Error:', getMessage('error', oneErr.mcode) + '. ' + getMessage('normal', 'TRY_AGAIN'));
             });
-            if (fromData) Controller.removeUser(param[0]);
+            if (fromData && incorrectCombi) {
+              Controller.removeUser(param[0]);
+            }
             return promiseTimeout(UI.selectAccount(), 1000);
         });
-    });
+    }).catch(function(errs) {
+        UI.printErrs(errs);
+    });;
   },
   "logout": function() {
     return Controller.logout().then(function(data) {
       console.log('logged out');
+      UI.curUser.isTA = null;
+      UI.curUser.problemType = null;
       return promiseTimeout(UI.selectAccount());
     });
   },
@@ -257,6 +272,8 @@ var UI = {
       } else {
         return UI.select(funcMap[answers.func].courseMul, answers.func);
       }
+    }).catch(function(errs) {
+        UI.printErrs(errs);
     });
   },
   "select": function(multiple, func) {
@@ -273,7 +290,7 @@ var UI = {
     
       if (name == 'problem') {
         list = data.filter(function(one) {
-          if ( (new Date(one.startdate)).toISOString() <=  (new Date()).toISOString() ) return true;
+          if ( UI.curUser.isTA || (new Date(one.startdate)).toISOString() <=  (new Date()).toISOString() ) return true;
           return false;
         });
         if (func == 'c') {
@@ -351,7 +368,6 @@ var UI = {
             console.log('logout');
             return UI.logout();
         } else {
-
           if (multiple) {
               return inquirer.prompt([{
                 "type": 'checkbox',
@@ -400,7 +416,6 @@ var UI = {
                         return UI.selectFunction();
                     });
                   }
-                  console.log('??');                  
                   
               });
 
@@ -408,7 +423,9 @@ var UI = {
               return Controller['select' + Name](choice).then(function(data) {
                   // console.log(data);
                   if (name == 'course') {
+                        UI.curUser.isTA = null;
                       if (func == 's' || func == 'p' || func == 'c') {
+                        UI.curUser.isTA = (data.paramData.role == 'TA');
                         return UI.select(funcMap[func].problemMul, func);
                       }
                   } else if (name == 'problem') {
@@ -470,8 +487,10 @@ var UI = {
                     return UI.submitAnswers(type);
                   });
               }, function(errs) {
-                  console.log(errs);
+                  UI.printErrs(errs);
                   return UI.submitFolder(type);
+              }).catch(function(errs) {
+                UI.printErrs(errs);
               });
             } else if (method == 'm') {
               return UI.submitFiles(filenames);

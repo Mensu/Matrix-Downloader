@@ -6,7 +6,10 @@ var wrapError = require('./wrapError.js');
 var ReportObject = require('./ReportObject.js');
 var toSubmitAt = require('./lib/toSubmitAt.js');
 var FilesDiff = require('./FilesDiff.js');
-var matrix = new MatrixObject(config.root);
+var matrix = new MatrixObject({
+  "rootUrl": config.root,
+  "googleStyleUrl": config.googleStyleUrl
+});
 var usersData = new UsersData(config.usersdataFilename);
 
 function matrixRequestErrorHandler(error, info) {
@@ -20,11 +23,13 @@ function matrixRequestErrorHandler(error, info) {
 function User() {
   this['username'] = null;
   this['password'] = null;
+  this['userId'] = null;
 
   var _courseId = null;
   var _courseName = null;
   var _problemId = null;
   var _problemName = null;
+  
   this['savePath'] = config.savePath;
   this['submissionId'] = null;
 
@@ -80,6 +85,7 @@ function User() {
       "get": function() {
         return {
             "username": this.username,
+            "userId": this.userId,
             "courseId": this.courseId,
             "courseName": this.courseName,
             "problemId": this.problemId,
@@ -91,6 +97,7 @@ function User() {
     }
   });
 }
+var paramNames = ['userId', 'courseId', 'courseName', 'problemId', 'problemName', 'submissionId'];
 
 var Controller = {
   "curUser": new User(),
@@ -124,6 +131,7 @@ var Controller = {
           if (body.status != 'OK') return matrixRequestErrorHandler(body, {"username": param.username});
           self.curUser.username = username;
           self.curUser.password = password;
+          self.curUser.userId = body.data.user_id;
           return Promise.resolve(body.data);
       }, matrixRequestErrorHandler);
   },
@@ -144,14 +152,14 @@ var Controller = {
   "saveUser": function() {
     usersData.add(this.curUser.username, this.curUser.password);
     return usersData.write().catch(function(err) {
-      Promise.reject([wrapError(err, 'FAIL_TO_WRITE')]);
+      return Promise.reject([wrapError(err, 'FAIL_TO_WRITE')]);
     });
   },
 
   "removeUser": function(username) {
     usersData.remove(username);
     return usersData.write().catch(function(err) {
-      Promise.reject([wrapError(err, 'FAIL_TO_WRITE')]);
+      return Promise.reject([wrapError(err, 'FAIL_TO_WRITE')]);
     });
   },
 
@@ -178,21 +186,17 @@ var Controller = {
 
   "getCourseInfo": function(param) {
     var self = this;
-    var parameters = {
-      "courseId": (param && param.courseId) || self.curUser.courseId
-    };
+    var parameters = self.fillParam(param);
     return matrix.getCourseInfo(parameters).then(function(body) {
         if (body.status != 'OK') return matrixRequestErrorHandler(body, parameters);
+        body.data.paramData = body.paramData;
         return Promise.resolve(body.data);
     }, matrixRequestErrorHandler);
   },
 
   "getProblemsList": function(param) {
     var self = this;
-    var parameters = {
-      "courseId": (param && param.courseId) || self.curUser.courseId,
-      "problemId": (param && param.problemId) || self.curUser.problemId
-    };
+    var parameters = self.fillParam(param);
     return matrix.getProblemsList(parameters).then(function(body) {
         if (body.status != 'OK') return matrixRequestErrorHandler(body, parameters);
         return Promise.resolve(body.data);
@@ -207,7 +211,7 @@ var Controller = {
       // if getSubmission failed => end
     return self.getProblemInfo().then(function(data) {
         ret = data;
-        self.curUser.problemName = data.title;        
+        self.curUser.problemName = data.title;
         return self.getSubmission(true);
     }).then(function(data) {
         ret.last = data;
@@ -217,10 +221,7 @@ var Controller = {
 
   "getProblemInfo": function(param) {
     var self = this;
-    var parameters = {
-      "courseId": (param && param.courseId) || self.curUser.courseId,
-      "problemId": (param && param.problemId) || self.curUser.problemId
-    };
+    var parameters = self.fillParam(param);
     return new Promise(function(resolve, reject) {
         var cache = self.curUser.problemsInfoCache[parameters.problemId];
         if (cache) return resolve(cache);
@@ -230,57 +231,48 @@ var Controller = {
             if (body.data.ca) {
               body.data.description = body.data.ca.description;
               body.data.title = body.data.ca.title;
+              body.data.file = body.data.file || [];
             }
             self.curUser.problemsInfoCache[parameters.problemId] = body.data;
             return resolve(body.data);
         }, matrixRequestErrorHandler).catch(function(errs) {
-            if (!Array.isArray(errs)) return reject([wrapError(errs, 'UNEXPECTED_ERR')]);
-            else reject(errs);
+            return unexpectedErrHandler(errs, reject);
         });
     });
   },
 
   "getDescription": function(param) {
     var self = this;
-    var parameters = {
-      "courseId": (param && param.courseId) || self.curUser.courseId,
-      "problemId": (param && param.problemId) || self.curUser.problemId
-    };
+    var parameters = self.fillParam(param);
     return new Promise(function(resolve, reject) {
         var cache = self.curUser.problemsInfoCache[parameters.problemId];
         if (cache) return resolve(cache.description);
-
         return self.getProblemInfo(param).then(function(data) {
             return resolve(data.description);
-        }, function(errs) {
-            return reject(errs);
+        }).catch(function(errs) {
+            return unexpectedErrHandler(errs, reject);
         });
     });
   },
 
   "getSupportFiles": function(param) {
     var self = this;
-    var parameters = {
-      "courseId": (param && param.courseId) || self.curUser.courseId,
-      "problemId": (param && param.problemId) || self.curUser.problemId
-    };
+    var parameters = self.fillParam(param);
     return new Promise(function(resolve, reject) {
         var cache = self.curUser.problemsInfoCache[parameters.problemId];
         if (cache) return resolve(cache.file);
         return self.getProblemInfo(param).then(function(data) {
-            return resolve(data.file);
-        }, function(errs) {
-            return reject(errs);
+            return resolve(data.file || []);
+        }).catch(function(errs) {
+            return unexpectedErrHandler(errs, reject);
         });
     });
   },
 
   "getSubmissionsList": function(param) {
     var self = this;
-    var parameters = {
-      "courseId": (param && param.courseId) || self.curUser.courseId,
-      "problemId": (param && param.problemId) || self.curUser.problemId
-    };
+    var parameters = self.fillParam(param);
+    parameters.isUsingUserId = true;
     return new Promise(function(resolve, reject) {
         var cache = self.curUser.submissionsListCache[parameters.problemId];
         if (cache) return resolve(cache);
@@ -289,8 +281,7 @@ var Controller = {
             self.curUser.submissionsListCache[parameters.problemId] = body.data;
             return resolve(body.data);
         }, matrixRequestErrorHandler).catch(function(errs) {
-            if (!Array.isArray(errs)) return reject([wrapError(errs, 'UNEXPECTED_ERR')]);
-            else reject(errs);
+            return unexpectedErrHandler(errs, reject);
         });
     });
     
@@ -304,40 +295,38 @@ var Controller = {
   "getSubmission": function(latest, param) {
     var self = this;
     var func = (latest === true ? 'getLatestSubmission' : 'getSubmission');
-    var parameters = {
-      "courseId": (param && param.courseId) || self.curUser.courseId,
-      "problemId": (param && param.problemId) || self.curUser.problemId,
-      "submissionId": (param && param.submissionId) || self.curUser.submissionId
-    };
+    var parameters = self.fillParam(param);
     return matrix[func](parameters).then(function(body) {
         if (body.status != 'OK' && body.status != 'SUBMISSION_NOT_FOUND') return matrixRequestErrorHandler(body, parameters);
-        return Promise.resolve(body.data || {"answers": []});
-    }, matrixRequestErrorHandler);
+        var ret = null;
+        if (body.data && body.data.answers) {
+          ret = body.data;
+        } else {
+          ret = {"answers": []};
+        }
+        return Promise.resolve(ret);
+    }, matrixRequestErrorHandler).catch(function(errs) {
+        return unexpectedErrHandler(errs, reject);
+    });
   },
 
   "submitAnswers": function(answers, param) {
     var self = this;
-    var parameters = {
-      "courseId": (param && param.courseId) || self.curUser.courseId,
-      "problemId": (param && param.problemId) || self.curUser.problemId,
-      "answers": answers
-    };
+    var parameters = self.fillParam(param);
+    parameters['answers'] = answers;
     return matrix.submitAnswers(parameters).then(function(body) {
         if (body.status != 'OK') return matrixRequestErrorHandler(body, parameters);
         self.curUser.submissionsListCache[parameters.problemId] = null;
         self.curUser.problemsInfoCache[parameters.problemId] = null;
         return self.downloadReport(true, parameters);
-    }, matrixRequestErrorHandler);
+    }, matrixRequestErrorHandler).catch(function(errs) {
+        return unexpectedErrHandler(errs, reject);
+    });
   },
 
   "downloadDescription": function(param) {
     var self = this;
-    var parameters = {
-      "courseId": (param && param.courseId) || self.curUser.courseId,
-      "courseName": (param && param.courseName) || self.curUser.courseName,
-      "problemId": (param && param.problemId) || self.curUser.problemId,
-      "problemName": (param && param.problemName) || self.curUser.problemName
-    };
+    var parameters = self.fillParam(param);
     return self.getDescription(parameters).then(function(description) {
         var filepath = self.curUser.savePath;
         if ( Object.prototype.toString.apply(param) == '[object Object]' ) {
@@ -355,14 +344,9 @@ var Controller = {
 
   "downloadSupportFiles": function(param) {
     var self = this;
-    var parameters = {
-      "courseId": (param && param.courseId) || self.curUser.courseId,
-      "courseName": (param && param.courseName) || self.curUser.courseName,
-      "problemId": (param && param.problemId) || self.curUser.problemId,
-      "problemName": (param && param.problemName) || self.curUser.problemName
-    };
+    var parameters = self.fillParam(param);
     return new Promise(function(resolve, reject) {
-      return self.getSupportFiles(parameters).then(function(files) {
+      self.getSupportFiles(parameters).then(function(files) {
           var basePath = self.curUser.savePath;
           if ( Object.prototype.toString.apply(param) == '[object Object]' ) {
             basePath = config.savePath + self.curUser.username + '/' + parameters.courseId + (parameters.courseName ? ' ' + parameters.courseName : '') + '/' + parameters.problemId + (parameters.problemName ? ' ' + parameters.problemName : '') + '/codes/';
@@ -382,13 +366,14 @@ var Controller = {
                 if (finished == files.length) {
                   return reject(errors);
                 }
+            }).catch(function(errs) {
+                return unexpectedErrHandler(errs, reject);
             });
           }
-          return FilesIO.write(filepath, description);
       }).catch(function(err) {
-          if (Array.isArray(err)) return Promise.reject(err); 
-          else if (!err.mcode) return Promise.reject([wrapError(err, 'FAIL_TO_WRITE')]);
-          return Promise.reject([err]);
+          if (Array.isArray(err)) return reject(err); 
+          else if (!err.mcode) return reject([wrapError(err, 'FAIL_TO_WRITE')]);
+          return reject([err]);
       });
     });
     
@@ -397,18 +382,23 @@ var Controller = {
   "downloadAnswers": function(latest, param) {
     var self = this;
     latest = (latest === true);
-    var parameters = {
-      "courseId": (param && param.courseId) || self.curUser.courseId,
-      "courseName": (param && param.courseName) || self.curUser.courseName,
-      "problemId": (param && param.problemId) || self.curUser.problemId,
-      "problemName": (param && param.problemName) || self.curUser.problemName,
-      "submissionId": (param && param.submissionId) || self.curUser.submissionId
-    };
+    var parameters = self.fillParam(param);
       // use callback but not return a thenable object => wrap it with a Promise
     return new Promise(function(resolve, reject) {
-        return self.getSubmission(latest, parameters).then(function(data) {
+        var filenamesList = null;
+        return self.getProblemInfo(parameters).then(function(data) {
+          filenamesList = data.ca.config.submission;
+          return self.getSubmission(latest, parameters);
+        }).then(function(data) {
             var answers = data.answers;
-            if (0 == answers.length) return resolve(false);
+            if (0 == answers.length) {
+              answers = filenamesList.map(function(one) {
+                return {
+                  "name": one,
+                  "code": ''
+                }
+              });
+            }
             var basePath = self.curUser.savePath + (latest ? '' : 'submissions/' + self.curUser.submissionId + '/') + 'codes/';
             if ( Object.prototype.toString.apply(param) == '[object Object]' ) {
               basePath = config.savePath + self.curUser.username + '/' + parameters.courseId + (parameters.courseName ? ' ' + parameters.courseName : '') + '/' + parameters.problemId + (parameters.problemName ? ' ' + parameters.problemName : '') + '/' + (latest ? '' : 'submissions/' + parameters.submissionId + '/') + 'codes/';
@@ -427,10 +417,14 @@ var Controller = {
                   if (finished == answers.length) {
                     return reject(errors);
                   }
+              }).catch(function(errs) {
+                  return unexpectedErrHandler(errs, reject);
               });
             }
         }, function(errs) {
             return reject(errs);
+        }).catch(function(errs) {
+            return unexpectedErrHandler(errs, reject);
         });
     });
   },
@@ -438,13 +432,7 @@ var Controller = {
   "downloadSubmissionFile": function(latest, param) {
     var self = this;
     latest = (latest === true);
-    var parameters = {
-      "courseId": (param && param.courseId) || self.curUser.courseId,
-      "courseName": (param && param.courseName) || self.curUser.courseName,
-      "problemId": (param && param.problemId) || self.curUser.problemId,
-      "problemName": (param && param.problemName) || self.curUser.problemName,
-      "submissionId": (param && param.submissionId) || self.curUser.submissionId
-    };
+    var parameters = self.fillParam(param);
     return self.getProblemInfo(parameters).then(function(data) {
         parameters['dest'] = data.config.filename;
         if (latest) return self.getSubmissionsList(parameters);
@@ -477,13 +465,7 @@ var Controller = {
     var func = (latest ? 'getLatestSubmission' : 'getSubmission');
     var reportObject = null;
     var errors = [];
-    var parameters = {
-      "courseId": (param && param.courseId) || self.curUser.courseId,
-      "courseName": (param && param.courseName) || self.curUser.courseName,
-      "problemId": (param && param.problemId) || self.curUser.problemId,
-      "problemName": (param && param.problemName) || self.curUser.problemName,
-      "submissionId": (param && param.submissionId) || self.curUser.submissionId
-    };
+    var parameters = self.fillParam(param);
     var submitTime = undefined;
     return matrix[func](parameters).catch(matrixRequestErrorHandler).then(function(body) {
         if (body.status == 'OK' && body.data && (body.data.grade == -1 || body.data.grade === null)) {
@@ -508,7 +490,7 @@ var Controller = {
         } else if (latest) {
             submitTime = toSubmitAt(data[0].submit_at, true);
         } else {
-            var submissionId = self.curUser.submissionId;
+            var submissionId = param.submissionId;
             for (var i = 0; i != data.length; ++i) {
               if (data[i].sub_ca_id == submissionId) {
                 submitTime = toSubmitAt(data[i].submit_at, true);
@@ -524,7 +506,7 @@ var Controller = {
         reportObject['submitTime'] = submitTime;
         var fileContent = config.report.beforeTitle
           + 'Submission Report' + config.report.beforeProblemName
-          + self.curUser.problemName + config.report.beforeReportObject
+          + problemInfo.title + config.report.beforeReportObject
           + 'var reportObject = ' + JSON.stringify(reportObject) + config.report.after;
         var basePath = self.curUser.savePath + (latest ? '' : 'submissions/' + self.curUser.submissionId + '/');
         if ( Object.prototype.toString.apply(param) == '[object Object]' ) {
@@ -547,9 +529,10 @@ var Controller = {
           errors.push(wrapError(errs, 'FAIL_TO_WRITE'));
           ret = errors;
         }
-        console.log(ret);
         return Promise.reject(ret);
-    });
+    }).catch(function(errs) {
+        return unexpectedErrHandler(errs, reject);
+    });;
   },
 
   "downloadFilesDiff": function(oldSub, newSub) {
@@ -692,9 +675,10 @@ var Controller = {
                     }
                 }, function(errs) {
                     ++finish;
-                    // console.log('Errors!!: ', errs);
                     errors = errors.concat(errs);
                     if (finish == list.length) return reject(errors);
+                }).catch(function(errs) {
+                  unexpectedErrHandler(errs, reject);
                 });
             });
         }
@@ -728,6 +712,8 @@ var Controller = {
                     // console.log('Errors!!: ', errs);
                     errors = errors.concat(errs);
                     if (finish == list.length) return reject(errors);
+                }).catch(function(errs) {
+                  unexpectedErrHandler(errs, reject);
                 });
             });
         }
@@ -754,10 +740,21 @@ var Controller = {
         }, function(err) {
           ++finish;
           errors.push(wrapError(err, 'FAIL_TO_READ', oneFile));
-          if (finish == total) return reject(errs);
+          if (finish == total) return reject(errors);
+        }).catch(function(errs) {
+          unexpectedErrHandler(errs);
         });
       });
     });
+  },
+
+  "fillParam": function(param) {
+    var parameters = {};
+    var self = this;
+    paramNames.forEach(function(one) {
+      parameters[one] = (param && param[one]) || self.curUser[one];
+    });
+    return parameters;
   }
 
 };
@@ -790,6 +787,13 @@ DownloadQueue.prototype = {
 
 
 
+function unexpectedErrHandler(errs, reject) {
+  if (!Array.isArray(errs)) {
+    return reject([wrapError(errs, 'UNEXPECTED_ERR')]);
+  } else {
+    return reject(errs);
+  }
+}
 
 (function exportModuleUniversally(root, factory) {
   if (typeof(exports) === 'object' && typeof(module) === 'object')

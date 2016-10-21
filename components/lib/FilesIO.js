@@ -1,7 +1,6 @@
-var config = require('../../config.js');
 var mkdirp = require('mkdirp');
 var path = require('path');
-var osPath = ~config.os.indexOf('win') ? path.win32 : path;
+var osPath = ~process.platform.indexOf('win32') ? path.win32 : path;
 var fs = require('fs');
 
 var FilesIO = {
@@ -23,7 +22,7 @@ var FilesIO = {
     return new Promise(function(resolve, reject) {
         return mkdirp(osPath.dirname(filepath), function(err) {
               if (err) return reject(err);
-              if (~config.os.indexOf('win')) {
+              if (~process.platform.indexOf('win')) {
                 data = data.replace(/\n/g, '\r\n');
               }
               return fs.writeFile(osPath.normalize(filepath), data, function(err) {
