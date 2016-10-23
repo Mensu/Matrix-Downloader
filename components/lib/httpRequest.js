@@ -2,6 +2,7 @@ var request = require('request');
 request = request.defaults({
   "jar": request.jar()
 });
+var userAgent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/52.0.2743.116 Safari/537.36';
 // process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 /** 
  * @description make a simple http request
@@ -36,7 +37,7 @@ function httpRequest(method, url, param) {
         request.get({
           "url": url,
           "headers": {
-            "User-Agent": 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/52.0.2743.116 Safari/537.36'
+            "User-Agent": userAgent
           }
         }, function(error, response, body) {
           if (error) return reject(error);
@@ -48,7 +49,7 @@ function httpRequest(method, url, param) {
           "url": url,
           "form": param,
           "headers": {
-            "User-Agent": 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/52.0.2743.116 Safari/537.36'
+            "User-Agent": userAgent
           }
         }, function(error, response, body) {
           if (error) return reject(error);
@@ -58,6 +59,7 @@ function httpRequest(method, url, param) {
   });
 }
 httpRequest['request'] = request;
+httpRequest['userAgent'] = userAgent; 
 
 (function exportModuleUniversally(root, factory) {
   if (typeof(exports) === 'object' && typeof(module) === 'object')

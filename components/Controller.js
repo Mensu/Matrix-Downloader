@@ -310,6 +310,21 @@ var Controller = {
     });
   },
 
+  "getGoogleStyleReport": function(param) {
+    return new Promise(function(resolve, reject) {
+      return matrix.getGoogleStyleReport({
+        "answers": JSON.stringify({
+          "files": param.answers
+        })
+      }).then(function(body) {
+        if (body.status == 'OK') return resolve(body.data);
+        else return resolve(null);
+      }, function(err) {
+        return resolve(null);
+      });
+    });
+  },
+
   "submitAnswers": function(answers, param) {
     var self = this;
     var parameters = self.fillParam(param);
@@ -476,6 +491,15 @@ var Controller = {
     }).then(function(body) {
         if (body.status != 'OK' && body.status != 'SUBMISSION_NOT_FOUND') return matrixRequestErrorHandler(body, parameters);
         reportObject = body;
+        if (body.data && body.data.answers) {
+          return self.getGoogleStyleReport({
+            "answers": body.data.answers
+          });
+        } else {
+          return null;
+        }
+    }).then(function(data) {
+        reportObject['google style'] = data;
         return self.getSubmissionsList();
     }).catch(function(errs) {
         if (reportObject) {
@@ -500,10 +524,13 @@ var Controller = {
         }
         return self.getProblemInfo(parameters);
     }).then(function(problemInfo) {
+        var googleStyle = reportObject['google style'];
         reportObject = new ReportObject(reportObject);
         reportObject['problemInfo'] = problemInfo.ca.config;
         reportObject.problemInfo['totalPoints'] = problemInfo.ca.config.grading;
         reportObject['submitTime'] = submitTime;
+        reportObject['google style'] = googleStyle;
+        reportObject.problemInfo.totalPoints['google style'] = 0;
         var fileContent = config.report.beforeTitle
           + 'Submission Report' + config.report.beforeProblemName
           + problemInfo.title + config.report.beforeReportObject
@@ -531,7 +558,7 @@ var Controller = {
         }
         return Promise.reject(ret);
     }).catch(function(errs) {
-        return unexpectedErrHandler(errs, reject);
+      console.log('?', errs);
     });;
   },
 

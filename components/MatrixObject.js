@@ -101,7 +101,12 @@ MatrixObject.prototype = {
           if (err) return reject(err);
           var file = fs.createWriteStream(dest);
           var request = httpRequest.request;
-          var sendReq = request.get(url);
+          var sendReq = request.get({
+            "url": url,
+            "headers": {
+              "User-Agent": httpRequest.userAgent
+            }
+          });
           // verify response code
           sendReq.on('response', function(response) {
             if (response.statusCode != 200 && response.statusCode != 304) {

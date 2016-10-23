@@ -33,14 +33,15 @@ ReportObject.prototype = {
       "standard tests": null,
       "random tests": null,
       "memory check": null,
-      "google tests": null
+      "google tests": null,
+      "google style": null
     };
 
     var data = body.data;
     if (body.err) {
       reportObject.msg = 'Error: ' + body.msg;
       reportObject.grade = -2;
-      console.log('body (body.err):', body);
+      // console.log('body (body.err):', body);
 
     } else if (body.status == 'SUBMISSION_NOT_FOUND') {
       reportObject.msg = 'No submissions yet';
@@ -49,26 +50,26 @@ ReportObject.prototype = {
     } else if (body.status == 'NOT_AUTHORIZED') {
       reportObject.msg = 'Not logged in';
       reportObject.grade = -2;
-      console.log('body (not logged in):', body);
+      // console.log('body (not logged in):', body);
       return null;
     } else if (data === null) {
       reportObject.msg = 'Not judged yet';
       reportObject.grade = -2;
-      console.log('body (not judged yet):', body);
+      // console.log('body (not judged yet):', body);
 
     } else if (data.grade == -1 || data.grade === null) {
       reportObject.grade = 'Under judging';
-      console.log('body.data (submission under judging):', body.data);
+      // console.log('body.data (submission under judging):', body.data);
 
     } else if (data.report === undefined || data.report === null) {
       reportObject.msg = 'Error: data.report is empty';
       reportObject.grade = -2;
-      console.log('body.data (body.data is empty):', body.data);
+      // console.log('body.data (body.data is empty):', body.data);
 
     } else if (data.report.error) {
       reportObject.msg = 'Error: ' + data.report.error;
       reportObject.grade = -2;
-      console.log('report (report.error):', data.report);
+      // console.log('report (report.error):', data.report);
     }
 
     var report = null;
@@ -160,9 +161,9 @@ ReportObject.prototype = {
         return;
       }
       curPhase['pass'] = false;
-      // for (var i in violation) {
+      
       violation.forEach(function(oneViolation, i, self) {
-        // var oneViolation = violation[i];
+        
         var range = function(begin, end) {
           if (begin == end) return begin;
           else return begin + ' ~ ' + end;

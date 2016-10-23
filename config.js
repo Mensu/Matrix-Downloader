@@ -1,6 +1,6 @@
 var config = {
   "root": 'https://vmatrix.org.cn',
-  "googleStyleUrl": '',
+  "googleStyleUrl": 'http://119.29.146.176:3000',
   "os": 'mac',
   "usersdataFilename": 'usersdata.txt',
   "savePath": './saved/',
