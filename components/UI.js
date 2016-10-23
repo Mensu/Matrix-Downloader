@@ -316,10 +316,15 @@ var UI = {
         console.log('no ' + name + 's for this account');
         return {"choice": 'b'}
       }
+
+      var sortKey = nameKey;
+      if (name == 'problem' && func == 'd') {
+        sortKey = idKey;
+      }
       if (name != 'submission') {
         list.sort(function(a, b) {
-          if (a[nameKey] < b[nameKey]) return -1;
-          else if (a[nameKey] > b[nameKey]) return 1;
+          if (a[sortKey] < b[sortKey]) return -1;
+          else if (a[sortKey] > b[sortKey]) return 1;
           else return 0;
         });
       }
