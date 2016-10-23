@@ -4,6 +4,7 @@
 - [``ieb``](https://github.com/iebb) whose [Madan](https://github.com/iebb/Maban) inspired this repository.
 
 # Main Features
+
 Make submission output generated on Matrix more convenient to read and utilize!
 
 - download problems (description, codes, report)
@@ -12,7 +13,15 @@ Make submission output generated on Matrix more convenient to read and utilize!
 
 # Run Source Code on node.js
 
-[``node.js``](https://nodejs.org/en/) is required.
+Latest version of [``node.js``](https://nodejs.org/en/) is required.
+
+## Install Dependencies
+
+~~~
+npm install
+~~~
+
+## Run
 
 ~~~
 npm start

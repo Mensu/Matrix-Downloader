@@ -248,7 +248,7 @@ var Controller = {
         var cache = self.curUser.problemsInfoCache[parameters.problemId];
         if (cache) return resolve(cache.description);
         return self.getProblemInfo(param).then(function(data) {
-            return resolve(data.description);
+            return resolve(data.description.replace(/\r\n/g, '\n'));
         }).catch(function(errs) {
             return unexpectedErrHandler(errs, reject);
         });
@@ -881,6 +881,9 @@ function modifyDescription(description) {
       return;
     }
     if (!incodeBlock && /^#{1,} \S/.exec(one)) {
+      if (!ret.endsWith('\n')) {
+        ret += '\n';
+      }
       ret += '#' + one + '\n\n---\n';
       if (self[index + 1] && self[index + 1].replace(/\r/g, '').length) {
         ret += '\n';

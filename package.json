@@ -18,8 +18,7 @@
 		"inquirer": "*",
 		"request": "*",
 		"mkdirp": "*",
-    "path": "*",
-    "fs": "*"
+    "path": "*"
 	},
   "author": "Mensu",
   "license": "MIT"
