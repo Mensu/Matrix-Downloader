@@ -881,7 +881,7 @@ function modifyDescription(description) {
       return;
     }
     if (!incodeBlock && /^#{1,} \S/.exec(one)) {
-      if (!ret.endsWith('\n')) {
+      if (!ret.endsWith('\n\n')) {
         ret += '\n';
       }
       ret += '#' + one + '\n\n---\n';
