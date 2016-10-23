@@ -775,6 +775,50 @@ var Controller = {
     });
   },
 
+  "downloadDescriptions": function(list) {
+    var self = this;
+    return new Promise(function(resolve, reject) {
+        var finish = 0;
+        var errorNum = 0;
+        var errors = [];
+        var rawDescription = '\n\n';
+        
+        function failure(errs) {
+            ++finish;
+            ++errorNum;
+            errors = errors.concat(errs);
+        }
+        for (let index = 0; index != list.length; ++index) {
+            self.getDescription({
+              "courseId": list.courseId,
+              "courseName": list.courseName,
+              "problemId": list[index].id,
+              "problemName": list[index].name,
+              "type": list[index].type
+            }).then(function success(description) {
+              ++finish;
+              rawDescription += '!#! ' + list[index].name + '\n' + description + '\n\n\n';            
+            }, failure).then(function() {
+              if (finish == list.length) {
+                if (errorNum != list.length) {
+                  return resolve(modifyDescription(rawDescription));
+                } else {
+                  return reject(errors);
+                }
+              }
+            });
+        }
+    }).then(function(description) {
+      var path = config.savePath + '/descriptions ' + toSubmitAt(new Date().toISOString(), true) + '.md';
+      return FilesIO.write(path, description);
+    }).catch(function(errors) {
+      if (!Array.isArray(errors)) {
+        errors = [wrapError(errors, 'FAIL_TO_WRITE')];
+      }
+      return Promise.reject(errors);
+    });
+  },
+
   "fillParam": function(param) {
     var parameters = {};
     var self = this;
@@ -820,6 +864,32 @@ function unexpectedErrHandler(errs, reject) {
   } else {
     return reject(errs);
   }
+}
+
+function modifyDescription(description) {
+  var splitLines = description.split('\n');
+  var ret = '';
+  var incodeBlock = false;
+  splitLines.forEach(function(one, index, self) {
+    if (one.slice(0, 3) == '!#!') {
+      ret += '#' + one.slice(3) + '\n\n';
+      return;
+    }
+    if (one.slice(0, 3) == '```') {
+      incodeBlock = !incodeBlock;
+      ret += '~~~' + one.slice(3) + '\n';
+      return;
+    }
+    if (!incodeBlock && /^#{1,} \S/.exec(one)) {
+      ret += '#' + one + '\n\n---\n';
+      if (self[index + 1] && self[index + 1].replace(/\r/g, '').length) {
+        ret += '\n';
+      }
+      return;
+    }
+    ret += one + '\n';
+  });
+  return ret;
 }
 
 (function exportModuleUniversally(root, factory) {

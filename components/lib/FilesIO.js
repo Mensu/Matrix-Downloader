@@ -22,7 +22,7 @@ var FilesIO = {
     return new Promise(function(resolve, reject) {
         return mkdirp(osPath.dirname(filepath), function(err) {
               if (err) return reject(err);
-              if (~process.platform.indexOf('win')) {
+              if (~process.platform.indexOf('win32')) {
                 data = data.replace(/\n/g, '\r\n');
               }
               return fs.writeFile(osPath.normalize(filepath), data, function(err) {

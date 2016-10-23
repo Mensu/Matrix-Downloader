@@ -46,6 +46,11 @@ var funcMap = {
     "courseMul": false,
     "problemMul": false,
     "submissionMul": true
+  },
+  "d": {
+    "courseMul": false,
+    "problemMul": true,
+    "submissionMul": false
   }
 }
 var phaseStack = {
@@ -263,6 +268,9 @@ var UI = {
         "name":  'Submit Codes',
         "value": 'c'
       }, {
+        "name": 'Download Descriptions',
+        "value": 'd'
+      }, {
         "name": 'Logout',
         "value": 'q'
       }]
@@ -405,10 +413,14 @@ var UI = {
                         });
                       });
                   }
-                  if (func == 'p' || func == 's') {
+                  if (func == 'p' || func == 's' || func == 'd') {
                     downloadList.type = UI.curUser.problemType;
                     UI.curUser.problemType = null;
-                    return Controller['download' + Name + 's'](downloadList).then(function() {
+                    var name = Name;
+                    if (func == 'd') {
+                      name = 'Description';
+                    }
+                    return Controller['download' + name + 's'](downloadList).then(function() {
                         console.log('success');
                     }, function(errs) {
                         UI.printErrs(errs);
@@ -424,7 +436,7 @@ var UI = {
                   // console.log(data);
                   if (name == 'course') {
                         UI.curUser.isTA = null;
-                      if (func == 's' || func == 'p' || func == 'c') {
+                      if (func == 's' || func == 'p' || func == 'd' || func == 'c') {
                         UI.curUser.isTA = (data.paramData.role == 'TA');
                         return UI.select(funcMap[func].problemMul, func);
                       }
