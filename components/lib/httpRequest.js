@@ -47,13 +47,14 @@ function httpRequest(method, url, param) {
         // param = JSON.stringify(param);
         request.post({
           "url": url,
-          "form": param,
+          "body": param,
+          "json": true,
           "headers": {
             "User-Agent": userAgent
           }
         }, function(error, response, body) {
           if (error) return reject(error);
-          else return resolve(body);
+          else return resolve(JSON.stringify(body));
         });
       }
   });

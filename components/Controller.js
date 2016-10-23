@@ -313,9 +313,9 @@ var Controller = {
   "getGoogleStyleReport": function(param) {
     return new Promise(function(resolve, reject) {
       return matrix.getGoogleStyleReport({
-        "answers": JSON.stringify({
+        "answers": {
           "files": param.answers
-        })
+        }
       }).then(function(body) {
         if (body.status == 'OK') return resolve(body.data);
         else return resolve(null);
